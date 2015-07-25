@@ -1,0 +1,7 @@
+* creazione di directory: quando il filesystem viene inizializzato
+emette questo messaggio:
+
+   FLARE. Setting ownership to 0:0
+
+la proprieta' e' attribuita a root anche se il FS gira come Tx0!
+questo e' un error!
