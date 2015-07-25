@@ -1,0 +1,513 @@
+
+-[*]----- (client) mount protocol specification ------------------------------
+
+     NOTE: this document should be revised. All information contained
+     in this document can be derived from file src/protocol_pkt.h
+
+Mount protocol is used by FUSE clients (and possibly by other clients
+in the future) to mount a Magma share. Protocol is binary to reduce overhead
+in both bandwidth and CPU cycles consumption. Each connection is started by
+sending a PEER_TYPE_MOUNT connection identifier (which is 2). After that
+each operation is declared as follows:
+
+1 MAGMA_OP_TYPE_HEARTBEAT
+2 MAGMA_OP_TYPE_<CODE>
+3 ... any data defined by single operation ...
+
+in case of failure, an answer is defined as:
+
+1 return value of function performed server side
+2 errno result
+
+in case of success, an answer is defined as:
+
+1 return value of function performed server side
+2 ... any data returned by single operation ...
+
+Here follows detailed specification of single binary format for each
+function implemented by Magma mount protocol. This convention will be
+used:
+
+  <string> means a null terminated text string which will be read as
+  char* array of characters.
+
+  <ustring> means a char* array of bytes or chars which is *NOT* 
+  null terminated. This is the kind of buffer returned by a read()
+  call where the buffer length is also returned as a separate information
+  before buffer is returned.
+ 
+--- Magma mount protocol API release 0.0.20061216 --------------------------
+
+01. MAGMA_OP_TYPE_GETATTR.
+
+  request:
+         uint16_t 1        /* MAGMA_OP_TYPE_GETATTR */
+         <string> path     /* path of file */
+
+  success answer:
+          int16_t res      /* the result code of lstat() call */ 
+     struct stbuf st       /* the resulting stat structure */
+
+  failure answer:
+          int16_t res      /* the result code of lstat() call */ 
+          int16_t errno    /* error number as specified by errno */
+
+  comment:
+    The biggest problem of this implementation is that struct buffer is
+    xmitted over the wire without caring about byte order. So box with
+    different endianess will mess up communication. Each structure
+    transmitted has to be prepared for network transmission.
+
+02. MAGMA_OP_TYPE_READLINK.
+
+  request:
+         uint16_t 2        /* MAGMA_OP_TYPE_READLINK */
+         uint16_t size     /* size of return buffer */
+         <string> path     /* path of file */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+         <string> st       /* the path acquired by readlink() */
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+03. MAGMA_OP_TYPE_GETDIR.
+
+  This call hash been deprecated by FUSE API so has not been implemented
+
+04. MAGMA_OP_TYPE_MKNOD.
+
+  request:
+         uint16_t 4        /* MAGMA_OP_TYPE_MKNOD */
+           mode_t NUMBER   /* type and permissions */
+            dev_t DEVICE   /* device for the file */
+         <string> path     /* path of file */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+05. MAGMA_OP_TYPE_MKDIR.
+
+  request:
+         uint16_t 5        /* MAGMA_OP_TYPE_MKDIR */
+           mode_t NUMBER   /* type and permissions */
+         <string> path     /* path of file */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+06. MAGMA_OP_TYPE_UNLINK.
+
+  request:
+         uint16_t 6        /* MAGMA_OP_TYPE_UNLINK */
+         <string> path     /* path of file */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+07. MAGMA_OP_TYPE_RMDIR.
+
+  request:
+         uint16_t 7        /* MAGMA_OP_TYPE_RMDIR */
+         <string> path     /* path of file */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+08. MAGMA_OP_TYPE_SYMLINK.
+
+  request:
+         uint16_t 8        /* MAGMA_OP_TYPE_SYMLINK */
+         <string> from     /* original file name */
+         <string> to       /* new file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+09. MAGMA_OP_TYPE_RENAME.
+
+  request:
+         uint16_t 9        /* MAGMA_OP_TYPE_RENAME */
+         <string> from     /* original file name */
+         <string> to       /* new file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+10. MAGMA_OP_TYPE_LINK.
+
+  request:
+         uint16_t 10       /* MAGMA_OP_TYPE_LINK */
+         <string> from     /* original file name */
+         <string> to       /* new file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+11. MAGMA_OP_TYPE_CHMOD.
+
+  request:
+         uint16_t 11       /* MAGMA_OP_TYPE_CHMOD */
+           mode_t mode     /* permissions */
+         <string> path     /* file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+12. MAGMA_OP_TYPE_CHOWN.
+
+  request:
+         uint16_t 12       /* MAGMA_OP_TYPE_CHOWN */
+            uid_t uid      /* UID number */
+            gid_t gid      /* GID number */
+         <string> path     /* file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+13. MAGMA_OP_TYPE_TRUNCATE.
+
+  request:
+         uint16_t 12       /* MAGMA_OP_TYPE_TRUNCATE */
+            off_t offset   /* position at which file should be truncated */
+         <string> path     /* file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+14. MAGMA_OP_TYPE_UTIME.
+
+  request:
+         uint16_t 14       /* MAGMA_OP_TYPE_UTIME */
+         <string> path     /* file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+   struct utimbuf utime    /* the structure returned by utime() call */
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+  comment:
+    see consideration for MAGMA_OP_TYPE_GETATTR about network integers
+    translation inside structures.
+
+15. MAGMA_OP_TYPE_OPEN.
+
+  request:
+         uint16_t 15       /* MAGMA_OP_TYPE_OPEN */
+         <string> path     /* file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+  comment:
+    Unexpectedly, open is an optional function using FUSE API. Yes, because
+    read() and write() syscall can be implemented by opening and closing
+    files, such trasparently being open unuseful. This is a big help in
+    developing stateless filesystems, the kind for which FUSE was developed,
+    but that can be a big obstacle in implementing stateful filesystem with
+    (let say) locking capabilities...
+
+    One possible idea is to implement a server cache which stores file
+    descriptors by path name and refuse reading and writing on unopen ones.
+    But that can also be trivial to break, because a file can be moved while
+    open, so changing it's path but being still the same file.
+
+    Probably there is no real solution unless a more complex file descriptor
+    semantics is employed, as is done by NFS which provides opaque file
+    descriptors (which are 32 or 128 bit numbers totally meaningless for the
+    client which explicitly have to avoid trying to guess what a number
+    means) which are stored serverside to manage open, read, write, close,
+    seek and other operations...
+
+16. MAGMA_OP_TYPE_READ.
+
+  request:
+         uint16_t 16       /* MAGMA_OP_TYPE_READ */
+           size_t size     /* amount of bytes to be read */
+            off_t off      /* starting at offset off */
+         <string> path     /* file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+        <ustring> buf      /* the read bytes; must be exactly res bytes */
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+17. MAGMA_OP_TYPE_WRITE.
+
+  request:
+         uint16_t 17       /* MAGMA_OP_TYPE_WRITE */
+           size_t size     /* amount of bytes to be written */
+            off_t off      /* starting at offset off */
+         <string> path     /* file name */
+        <ustring> buf      /* buffer to be written */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+18. MAGMA_OP_TYPE_STATFS.
+
+  request:
+         uint16_t 18       /* MAGMA_OP_TYPE_STATFS */
+         <string> path     /* file name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+    struct statfs buf      /* the structure returned by statfs() call */
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+  comment:
+    see consideration for MAGMA_OP_TYPE_GETATTR about network integers
+    translation inside structures.
+
+19. MAGMA_OP_TYPE_FLUSH.
+
+  optional; yet not implemented.
+
+20. MAGMA_OP_TYPE_RELEASE.
+
+  optional; yet not implemented.
+
+21. MAGMA_OP_TYPE_FSYNC	.
+
+  optional; yet not implemented.
+
+22. MAGMA_OP_TYPE_SETXATTR.
+
+  optional; yet not implemented.
+
+23. MAGMA_OP_TYPE_GETXATTR.
+
+  optional; yet not implemented.
+
+24. MAGMA_OP_TYPE_LISTXATTR.
+
+  optional; yet not implemented.
+
+25. MAGMA_OP_TYPE_REMOVEXATTR.
+
+  optional; yet not implemented.
+
+26. MAGMA_OP_TYPE_OPENDIR.
+
+  optional; yet not implemented.
+
+27. MAGMA_OP_TYPE_READDIR.
+
+  request:
+         uint16_t 27       /* MAGMA_OP_TYPE_READDIR */
+	    off_t off      /* perform readdir at offset off */
+         <string> path     /* dir name */
+
+  success answer:
+          int16_t res      /* the result code of call */ 
+   struct utimbuf utime    /* the structure returned by utime() call */
+
+  failure answer:
+          int16_t res      /* the result code of call */ 
+          int16_t errno    /* error number as specified by errno */
+
+  comment:
+    see consideration for MAGMA_OP_TYPE_GETATTR about network integers
+    translation.
+
+    note: this call has been extensively rewritten. documentation is
+    not up to date. refer to beginning of src/protocol_pkt.h for better
+    explanation.
+
+28. MAGMA_OP_TYPE_RELEASEDIR.
+
+  optional; yet not implemented.
+
+29. MAGMA_OP_TYPE_FSYNCDIR.
+
+  optional; yet not implemented.
+
+30. MAGMA_OP_TYPE_INIT.
+
+  optional; yet not implemented.
+
+31. MAGMA_OP_TYPE_DESTROY.
+
+  optional; yet not implemented.
+
+---> Final Considerations:
+
+ 1. Signs, endianness and types length doing transfert across the net.
+
+One of main issues about this release is that no attention has been payed
+about network byte ordering nor types size in designing network transferts.
+This means that on different platforms surely will arise problems about
+endianness and different hardware architectures (mening incompatibilities
+about 32 and 64bit architectures). Probably while sending and receiving
+data structures each field of the structure should be splitted and encoded
+using standard base type. Examine struct stat as defined in GNU/Linux:
+
+  struct stat {
+      dev_t         st_dev;      /* device */
+      ino_t         st_ino;      /* inode */
+      mode_t        st_mode;     /* protection */
+      nlink_t       st_nlink;    /* number of hard links */
+      uid_t         st_uid;      /* user ID of owner */
+      gid_t         st_gid;      /* group ID of owner */
+      dev_t         st_rdev;     /* device type (if inode device) */
+      off_t         st_size;     /* total size, in bytes */
+      blksize_t     st_blksize;  /* blocksize for filesystem I/O */
+      blkcnt_t      st_blocks;   /* number of blocks allocated */
+      time_t        st_atime;    /* time of last access */
+      time_t        st_mtime;    /* time of last modification */
+      time_t        st_ctime;    /* time of last status change */
+  };
+
+off_t is stated to be a signed integer type. That means that assuming
+off_t can be int16_t or int32_t is right. But which one? 16 or 32 bits?
+Ok, you say, no problem, just use 32bit integers and everything will be
+fine.
+
+Sure, but if one of endpoints is a 64bit system using longer types
+for integer? If 64bit integers are used? And let consider an even worst
+situation.
+
+dev_t is stated to be int. POSIX (as far as I know) simply state that
+should be an integer type. But nothing about size of that integer is stated.
+And to mess things completely up, nothing about sign is stated. It's a signed
+or unsigned integer?
+
+Browsing bits/typesizes.h on GNU/Linux system, we discover that dev_t is an
+unsigned 4 bytes integer (__UQUAD_TYPE).
+
+That should be addressed in future release of this protocol. This is a short
+table including all protocol operations that involve structures transmission
+and should cast explicitly the problem:
+
+  GETATTR: struct stat
+
+  READDIR: struct dirent, struct stat
+
+  UTIME:   struct utimbuf
+
+  STATFS:  struct statfs
+
+All functions should also cast return codes and errno values using htonl()
+and ntohl(), which is not done so far.
+
+  2. Locking on a stateless implementation
+
+It seems that FUSE does not provide in its functions a way to perform locking.
+That's not a problem. Infact, locking is provided on most systems as advisory
+locking, using a variety of methods which includes creating a .lock file for
+each file locked or others solutions of the kind.
+
+But on a stateless protocol, a protocol in which there's no need to perform
+a real open() to read() or write() on a file (and so no close() is required,
+and that's because read() and write() server-side implementations perform
+silently a open() before and a close() after) how can be a locking mechanis
+be implemented?
+
+One possible solution is that, since every software in this world expect to
+perform a open() in order to read() or write() on files, locking can be done
+in the server-side open() code. That's right. But what about lock releasing?
+You promplty answer: silly, just do it in close()!
+
+Ok. There are some things to be considered.
+
+First of all: not all files opened are closed! Yes, that's because when a
+program terminates, O.S. perform that kind of actions. So, assuming that a
+proper close() is performed by the O.S., implementing unlocking in close()
+calls should not be a problem. Need to be tested, but can work... of course
+if we don't assume that a Unix box can crash, which can happen also for
+hardware problems, leaving files remotely locked.
+
+So far so good, but we are not writing a local filesystem. We are writing
+a network one. So net is on our path. What about network connection being
+lost for hardware or software problems? How can we assure that a locked file
+is released if something gets wrong on the net? A possible silly race
+condition is that even a carefully written filesystem can prevent itself
+from locking a file which it locked before having network problems.
+
+Probably the best solution is to provide a server-side internal cache of
+file locks stored in a hashing structure, with timestamps to allow timeouted
+release of locking. That should be placed on a structure shared among all
+the server threads, since locking can't be performed on a client basis but
+should be valid for all clients accessing the same file, even from different
+hosts.
+
+  3. keepalive mechanism to ensure connection
+
+To reliably provide that each operation is correctly performed, the easiest
+way is to open a new connection to server, perform the action, obtain any
+result and than terminate the connection.
+
+But opening and closing connections is expensive. Modern tendencies all
+state that performing as many operations as possible on same connection is
+the best way to reduce bandwidth (think to HTTP which was used to perform
+one request per connection and now allows multiple requests per connection,
+transferring not only a single HTML page but also included images,
+stylesheets and embedded objects...)
+
+That's right and that's also the way Magma do. But connection can be lost.
+That's why Magma clients should send a keepalive opcode before doing any
+MAGMA_OP_TYPE_* operation.
+
+Probably sending the k.a. opcode without expecting something in return is
+not wise. Probably a ACK code should be returned, probably activating a
+select() on socket to avoid hanging client during operations and overloading
+the CPU.

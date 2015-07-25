@@ -1,0 +1,183 @@
+
+  * This document is about how Magma distributes files on all connected nodes.
+
+  TOC:
+      1. REQUIREMENTS AND GOALS
+      2. HASHING THE FILE NAME
+      3. DISTRIBUTING DIRECTORIES
+      4. DISTRIBUTING FILES
+      5. A REAL EXAMPLE OF FILE (AND DIRECTORY) ACCESS
+
+
+  1. REQUIREMENTS AND GOALS
+
+  Magma tries to address a set of features at the same moment. The main
+goal is to provide a robust, reliable end efficient manner to distribute
+files across a network (possibly geographically distributed) granting all
+the following:
+
+  (*) redundancy
+
+  Files should be available from as many hosts as requested by administrators
+of the dhtfs network. So, at least, a file should be available from two
+different nodes to avoid being lost in case of node failure o seize.
+
+  (*) security
+
+  A Magma network is composed on nodes which freely join and leave the
+network. That does not means that every box over the Internet whith a Magma
+server installed can join each Magma network created on the net. That simply
+means that joining (and leaving) is transparent to clients which are mounting
+Magma shares.
+
+  Plain-text communication is no more a choice available. So enters
+cryptography. Magma uses SSL to enforce privacy over the network and to
+ensure that access informations are strongly protected.
+
+  Joining is performed using a keyphrase which is a secret passphrase used
+to protect shares from unauthorized access. That key should not be released
+in any way, because that will compromise network security. Tranmitting
+keyphrase while mounting a filesystem or chatting with another node should
+be performed only after a secure SSL channes has been established.
+
+  (*) privacy
+
+  User data should be protected from unauthorized access. That sounds nice
+but we have to state exactly what is unauthorized access. Of course, being
+a standard filesystem without cryptographic functions exposed to users,
+Magma does not aims to provide a cryptographic facility for personal privacy
+which should of course managed by single users using GnuPG or something
+similar.
+
+  The kind of protection which Magma aims to provide is related to locations
+at which files are hosted during their distributed lifecycle. No one wants
+that a volunteer providing storage and bandwidth turns to be a unsuspected
+intruder in the network which simply wants access to informations. But
+distributing files on untrusted resources is a desired feature.
+
+  So nodes are designed to be blind about file contents. All nodes can
+know about files is their position on the distributed hashtable because
+that information is publicly available calculating a hash bucket which is
+derived from filename and network keyphrase.
+
+	[this section is out of date starting from here and will be modified]
+	[please skip it and jump to section 2.]
+
+  All that means that an attacker should only be able to locate a file,
+provided that he or she was able to discover the secret keyphrase needed
+to locate a file over the Magma net. But contents should be encrypted so
+no access can be performed.
+
+  That raises a new problem: which kind of encription can be used?
+
+  Simmetric encription can be a easy choice to deploy but sharing of
+keys can be a problem! So public key cryptography is the only option left.
+
+  Each node generate a key pair and export public key on keyserver. While
+a file is located on a node, the file is encrypted using server keys. If
+a file transfert is required, data should be decrypted and re-encrypted using
+client keys.
+
+  This is of course a lot of work so key generation should be carefully
+addressed as a security/performance balance while generating.
+
+  That can also introduce a problem about possibility to write different
+clients. mount.dhtfs client included in Magma distribution is a userland
+application which implements the filesystem clientside using FUSE library.
+That is CPU expensive and a kernel driver can be more desirable.
+
+  But a kernel driver implementing public key cryptography can also be
+painful to write. So Magma is designed to provide to kind of transferts:
+crypted or plain text.
+
+  "But you stated that plain communication is not an option!" Sure and I'm
+not reviewing my position ;-).
+
+  Connection is all the time encrypted using SSL layer. SSL can be avoided
+while communication is performed on the same host (server and client running
+on the same box). Inside this SSL protected channel, data transfert can
+be of two types: encrypted or plain text.
+
+  In first case, probably a node is transferring a file on another node
+just to achive network redistribution after a node entered or left the network.
+
+  In second case, probably a client is accessing a resource on a server,
+which means performing any of the MAGMA_OP_TYPE_* call described in
+src/protocol.h or in docs/mount_protocol.txt.
+
+  The easiest thing about SSL channels on client implementation is that
+can be achived using tunnelling software (like SSH, vtun, FreeS/WAN, ...)
+and then mounting using localhost:<forwarded_port>. That should be the
+simpliest way to also provide encrypted communication using a client
+implementation written as a kernel module.
+
+  2. HASHING THE FILE NAME
+
+  In this first release of experimental distribution protocol, Magma will
+use the full path name to produce hashed string. So, file /etc/hostname
+will produce 2 hashed values corresponding to:
+
+  0d6dc74453f96de42860c902605c0a05123c4e45  /etc
+  3cf1dea14f6f7aa047129409e29ebede627491c2  /etc/hostname
+
+  The most notable differece between these files is that the first is
+a directory, while the second is a plain file. Distributing plain files
+is simple, assuming that namespace is flat (in other words, assuming
+directories were never invented). But in real world scenario, directory
+hopefully exist, so Magma has to solve the problem of distributing
+hierarchical namespaces.
+
+  3. DISTRIBUTING DIRECTORIES
+
+  The first attempt we'll made is to save directories in a standard format
+inside a bare file, simply dumping struct dirent contents sequentially on
+disk. Directories will be equal to a plain file, will be hased and distributed
+as plain files.
+
+  The main problem with this approach is that distributing files can also
+cause "temporary data loss". I.E. a file is listed in a directory, so "should"
+exist, but the node hosting the file is down and file can be accessed. That
+file will generate an I/O error (or may be something more appropriate) while
+the node is down.
+
+  4. DISTRIBUTING FILES
+
+  5. A REAL EXAMPLE OF FILE (AND DIRECTORY) ACCESS
+
+  Accessing a file means, in our scenario, contacting a node and obtaining
+contents (or sending). If the resource is located on our directly mounted node,
+nothing special happens. But if the file is not on our host?
+
+  Magma has to perform some standard steps before answering to a syscall from
+a mounter.
+
+  First of all, a node should locate the resource over the net. That means
+finding the host, opening a connection, performing the syscall and sending
+back the results.
+
+  Take the file /etc/hostname.
+
+  First of all enter the directory. /etc is cheched against hashing routing
+table, main and secondary server are found, contacted in that order until
+one is found to answer. File mode and permissions are fetched to check if
+is possible to access the file as requested. Than is possible to operate on
+file.
+  
+  File hashes to 3cf1dea14f6f7aa047129409e29ebede627491c2. So our node has to
+lookup its routing table and discovers that the hash falls in domain hosted
+by servers dhtfs.bigcompany.com and p2p.pirates.net.
+
+  First attempt to establish a connection to master server,
+dhtfs.bigcompany.com. If connection is unavailable, a second try to backup
+server p2p.pirates.net will be tried. If both fail, a Resource Unavailable
+error will be triggered.
+
+  After getting server attention, the syscall is performed and the result
+is returned to mount client.
+
+  A different approach, based on redirect emitted from our server if the file
+is not locally located has been temporary discarded because introduced
+problems about network link availability. If can be assumed that nodes can
+talk each other (thank's to VPN/tunneling/firewall infrastructure), the same
+can't be assumed on mount clients that can be connected behind a firewall,
+or can have no access to proper VPN structure.
