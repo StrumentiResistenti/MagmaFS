@@ -1,0 +1,492 @@
+MAGMA Distributed HashTable filesystem for Linux Changelog
+
+* Major changes in 0.0.20060810
+
+  fixed a nasty protocol bug in readlink() call. now everything
+  seems to work properly. Doing an strace of ls, raise the need
+  to implement *xattr functions to speed up transaction.
+
+  mount.magma command line parsing has been completely fixed.
+  now FUSE options required to mount are provided by software
+  on its own and use needs no more to add all the complex
+  string on command line.
+
+  mount.magma debugging directive (-d) now correctly enables and
+  disables syslog() calls.
+
+* Major changes in 0.0.20060807
+
+  mount.magma now parses cmdargs on its own. There is still
+  a problem passing mountpoint to libfuse, so client is not
+  operational in this release.
+
+  Preliminary Autoconf/Automake build system added. Something
+  need to be refined, but compilation works.
+
+  Added option --enable-pkt-dump to include packet dumping at
+  compile time.
+
+* Major changes in 0.0.20060806
+
+  readdir now operate correctly. in mount.magma.c: removed last
+  call to filldir which added a WRONG empty entry which caused ls
+  to report an Input/Output error.
+
+  dump_to_file is enabled at compile time, removing unneeded code
+  in production environments. to enable, define _ENABLE_DUMP_TO_FILE
+  in magma.h or using -D command line in CFLAGS
+
+  -T option added to avoid spawning new threads on new connections.
+  just for debug. use threads in normal operations.
+ 
+* Major changes in 0.0.20061210
+
+  Former name (DHTfs) dropped in favour of MAGMAfs.
+
+  Complete rewrite of simbol names through all the code.
+
+  Nodes are now called vulcanos, and everything inside the filesystem
+  is known as a "flare". Check files magma_flare.[ch] and vulcano.[ch]
+  for further informations.
+
+  Cache is now not limited to directory, as a part of this big
+  rewrite. Every flare is cached inside internal b-tree. This is
+  done to assure better performance and mandatory-like locking on
+  all objects.
+
+  NOTE: major rewrite totally broke compatibility with regression
+  tests in t/ directory. That's not a major problem since MAGMAfs
+  is non yet published. ;-)
+
+* Major changes in 0.0.20061216
+
+  malloc()/free() debugging system implemented in debug_free_calls.h.
+  a free() macro can be enabled by defining symbol _DEBUG_FREE_CALLS.
+  New macro will first check if symbol is listed in an unfreeable
+  symbols list and if so will prompt an error messages, providing
+  file:line where free() occurrend.
+
+  Unfreeable symbols list can be updated using companion macro
+  unfreeable(symbol) which will save symbol by address in a linked
+  list.
+
+  Header debug_free_calls.h must be included after all other headers,
+  especially system's ones. libc and co. does not like very much to
+  have sugar around free() calls ;p
+ 
+* Major changes in 0.0.20070101
+
+  Happy new year! ;-)
+
+  Directory layer totally rewritten! (Yea, hackers code on first day
+  of new year...) Dropped static structure based on one single
+  array of fixed size pages and introduced a flexible pointer based
+  mechanism more similar to well known filesystems. Code is much more
+  simpler and elegant now. Check dir_ops.c with your eyes.
+
+  Refit of debug code:
+
+  - added debug mask (see -h option for details) to show just
+  the kind of debug output you need. A hint for bash users: to
+  compose the mask use "-D $((1+2+4+128))". Bash is great!
+
+  - added new code to lock_flare() and lock_cache() macros (and
+  respective couterparts) to ease debugging of mutex locking race
+  conditions, by printing __FILE__ and __LINE__ markers.
+
+  - configure switch --enable-debug-stderr will only alter
+  magmad behaviour. mount.magma will keep logging on syslog.
+  that's because is no point in logging to stderr by a program
+  which fork in background and lost connection with terminal.
+
+* Major changes in 0.0.20070102
+
+  Corrected several bugs in directory layer.
+
+  Offset was calculated on absolute base (starting from
+  flare->item.dir->pages pointer and tracking offset on
+  DIR->current_dirent (where DIR is a magma_DIR_t pointer).
+  If munmap()-mmap() occurred on directory to grow mmap()ped
+  area, DIR->current_dirent can be invalid in other
+  magma_DIR_t open pointers. New system uses a
+  off_t DIR->offset tracker. magma_get_empty_slot() has been
+  redesigned to use DIR->offset and compute new pointer using
+  current DIR->dir->item.dir->pages base address.
+
+  save_flare_to_disk() has been corrected to save directory
+  first page (with "." and ".." entries) on creation of new
+  flare.
+ 
+* Major changes in 0.0.20070103
+
+  Flare subsystem had a problem in regular file creation.
+  After debugging a lot (and creating the first test of new
+  magma release, t/flare_create.c) found 2 broken lines in
+  magma_cast_to_file() macro which discarded the entire
+  struct stat for no reason.
+ 
+* Major changes in 0.0.20070105
+
+  Corrected huge bug in flare subsystem on magma_flare.h
+  Each time a directory flare is search in cache using
+  magma_search_or_create() macro, the flare is also reloaded
+  from disk. load_flare_from_disk() do a flare_upcast() which
+  in turn calls a flare_cast_to_dir() [in case of directories,
+  of course]. But, if directory already existed in cache,
+  it's item.dir member is overwritten by a fresh new malloc().
+  Now does not longer happens, since a check on item.dir
+  being NULL is done before allocating.
+
+  If it seems a stupid bug, remember: every bug is stupid
+  after someone else spent a whole night crawling kbytes of
+  code with printf and GDB for you! And also remember:
+  "watch" is one of the most powerful GDB friends you have,
+  after you figured out where to look!
+
+  Refit of flare subsystem to be more logical in function
+  naming, function purposes (like adding flare to parent,
+  removing flare from parent, ...). flare subsystem shoul
+  hide most of the network layer (as far as possible, of
+  course). what remains outside should me managed in
+  protocol_fuse.c and protocol_node.c
+
+* Major changes in 0.0.20070110
+
+  Big news! NFS interface added and partially implemented.
+  linking with RPC library, mount.x and nfs_prot.x descriptions
+  compiled with RPCGEN and included. All mount methods and
+  some nfs_prot methods implemented.
+
+  NFS uses a 32byte identifier to locate files. The only
+  attribute we can store in 32 bytes is the binary version
+  of flare hash (which is 20 bytes SHA hash). so a new field
+  binhash has been added to flare object to store that
+  information.
+
+  A new function called magma_search_by_hash(char *hash) has
+  been introduced to locate an object in the cache by its
+  binary hash.
+ 
+* Major changes in 0.0.20070131
+
+  Bug in magma_erase_flare() found. flares were left in
+  cache. magma_remove_from_cache() call added at the end of
+  this function.
+ 
+* Major changes in 0.0.20070430
+
+  Big big bug in flare destructor magma_destroy_flare() has
+  been found. Well, bug wasn't in that function, but in
+  magma_remove_from_cache() which did a free() of flare
+  struct. That caused memory leaks and SIGSEGV. Now solved.
+
+  Another big big (believe me, really big) bug was page
+  allocation for directory contents. A silly error: a +1 in
+  directory size formula in magma_opendir() lead to a continuos
+  growth each time a directory was opened. Now solved: directories
+  perform very well!
+
+  Code for cache cleaning introduced __but_is_bugged!__
+  Take a look inside magma_search_under_node(). The idea is
+  that each time a flare is searched, this function
+  traverse recursively the whole tree. What better place to
+  place cache cleaning? Well, but more mutex locking is
+  required to be robust enough. Probabily in_use counter
+  goes to 0 even before the flair is used. Think at a leaf
+  flare. Its in_use counter is 0. When the function locate
+  the flare its counter is still 0. But the node is deleted
+  before being returned!!
+
+  Double check this algorithm.
+ 
+* Major changes in 0.0.20070507
+
+  More focus has been put on flare's mutexes. Cache is
+  partially locked while searching flares. While a recursive
+  scan is done, each node is locked. If it is the node requested,
+  lock is left and flare is returned __LOCKED__! If it is not,
+  flare is unlocked and scan can recursively continue without
+  blocking other searches.
+
+  When a flare is removed from the cache, the parent is locked
+  to insulate that branch of the tree. If flare is not a leaf,
+  also ->left and ->right flares are locked. magma_remove_from_cache
+  also has a specific mutex, called cache_removal_mutex, which
+  is used only by magma_remove_from_cache (it's possibly unuseful,
+  but so far it's in its place).
+
+  console has a better "dump cache" command, which also print
+  information about locking of each flare. console has also
+  been provided with a "shutdown" command to clean-kill magmad.
+
+  Finally a note on flare destruction. An attempt to perform
+  flare uncaching and destruction has been done using a parallel
+  thread managed with posix semaphore. The main problem with this
+  approach is that if a flare is erased and than recreated of
+  another kind (like happens with GNU tar which create a
+  regular file for each symlink in the archive and later unlink
+  the regfile and symlink() to create the proper one), if the
+  flare is still in cache, it will be fetch of the wrong kind,
+  consequently messing up everything!!! removal thread is still
+  coded in but now disabled. Search for magma_schedule_destroy_flare
+  to learn more.
+
+* Major changes in 0.0.20070512
+
+  After rethinking locking mechanism, I've decided that flares
+  require two mutexes! Flares are two objects in one. Are both
+  a node inside a b-tree (the cache) and a model rappresenting
+  a "thing" on disk. Locking a node of the tree does not mean
+  that no operation can be performed on file (or dir, or ...)
+  that object points to.
+
+  So another mutex, called item_mutex, has been introduced
+  in magma_flare_t. magma_search_under_node() now returns the
+  flare locked using flare->item_mutex and not flare->mutex.
+  That should allow concurrent operations on disk while allowing
+  cache rearrangement by magma_add_to_cache() and
+  magma_remove_from_cache()
+
+* Major changes in 0.0.20070520
+
+  Garbage collector had some bugs on queue management.
+  Now fixed. Minor fixes also on magma_flare.c. Added new
+  debug level just for garbage collector (label GARBAGE,
+  value 16384).
+
+* Major changes in 0.0.20070522
+
+  Garbage collector had some problems in activation, mainly
+  related to mutex locking, now fixed. Should reimplement
+  barrier with condition variable, insted of semaphore.
+
+  Flare has been changed: locking on operations is done
+  using read/write locks instead of a single mutex! Much
+  better.
+
+  protocol_fuse.c rewritten avoiding goto instructions and
+  using new read/write lock mechanism.
+
+* Major changes in 0.0.20070523
+
+  Added thread pool management to proper join active
+  threads when magma goes shutting down.
+
+  Add context to fuse protocol and mount.magma. Now each
+  call transfer also UID and GID of calling process to
+  provide authorization informations. A function is under
+  developement for that purpose, is called check_permission().
+
+  mount.magma now by defaults sets also allow_other FUSE
+  option.
+
+  Fixed also a conceptual bug which prevented mount.magma
+  from properly reconnecting to magmad if server went down
+  for a while.
+
+* Major changes in 0.0.20070806
+
+  Disabled garbage collector to concentrate on flare system
+  consistency.
+
+  First of all: FUSE protocol were rewritten using symbolic names for macro,
+  allowing better comprehension of code. New macros also care for byte order
+  conversion, even for 64 bit integers. (conversion should still be tested on
+  different platforms)
+
+  magma_get_directory_border became macro get_directory_border and was optimized
+  using internal calculations instead of lstat() call.
+
+  xnetstrcpy() was obsoleted by new functions cnetstrcpy() and cnetstrsend().
+  cnetstrsend() send string length before sending string contents, and
+  cnetstrcpy() get contents according to heading counter. String buffer is
+  dynamically allocated.
+
+  Issue in flare->st.st_blocks and flare->st.st_blksize has been solved.
+  Now du and ls return same output about file size.
+
+  Debug code has been cleaned of useless statements.
+
+* Major changes in 0.0.20070815
+
+  Directory /var/run/magma/ created. Functions save_status() and
+  load_status() added to parseargs.c. Data is saved in
+  /var/run/magma/status and /var/run/magma/pid.
+
+  protocol_fuse.c now implements permission checking using
+  check_permission() defined in magma_flare.c.
+
+* Major changes in 0.0.20070908
+
+  New boot protocol using magma_flare.h function on a fake lava
+  ring to gather informations about DHT. Send and receive node
+  protocol functions left, but possibly will no longer used.
+
+  magma_mknod() now checks if mode param contains informations
+  about flare type and also checks flare type is not DIR.
+
+  Boot code now figure magma uid and gid from system files and
+  tries to seteuid() and setegid() before any other operation.
+  magmad is now installed suid and sgid as user magma and group
+  magma (which should be present in /etc/passwd and /etc/group)
+
+  utils.h provides new get_user_groups(uid) function that
+  returns an array of gid_t elements describing groups of user
+  uid. It's used mainly in check_permission(). Caching has been
+  implemented. Group cache is protected by a mutex which is
+  near to be useless. Cache is added headside like in:
+
+    pthread_mutex_lock(&m);
+    new->next = head;
+    head = new;
+    pthread_mutex_unlock(&m);
+
+  and is cleaned this way:
+
+    /* save a copy of address pointed by head elsewhere */
+    pthread_mutex_lock(&m);
+    head = NULL;
+    pthread_mutex_unlock(&m);
+    /* do other cleaning ops */
+
+  Such a mutex is really needed? Being in doubt, I'm leaving it
+  where is.
+
+  magma_simplify_path() function coded to simplify paths. Can
+  1. tear off muliple slash sequences
+  2. tear off redundant './' portions
+  3. resolve '/something/../' into '/'
+  Mainly used by protocol_console.c
+
+* Major changes in 0.0.20070911
+
+  ACL has been completed. Rules are read from file /etc/magma/acl
+  and are declared using this syntax:
+
+  /share/path:
+    op /sub/path ipaddr[/mask]
+
+  where:
+
+  /share/path is the share exported by magma
+  op is one in r (read-only), w (read/write), n (no access)
+  /sub/path is an arbitrary path under /share/path
+  ipaddr[/mask] is the network part to which the rule applies.
+
+  Note that mask can be specified in the form n.n.n.n or in
+  the form /N where N is a number between 0 and 32. If missing,
+  a netmask of 255.255.255.255 is assumed, so 127.0.0.1 is
+  considered a host address equivalent to 127.0.0.1/32.
+
+  protocol_flare.c and mount.magma.c has been modified to
+  embed ACL. Checking is done inside each magma_* function in
+  mounter client and inside each transmit_* function on server
+  side. Flare protocol now expects that after exchanging the
+  connection type, the client send the string of the share
+  to be mounted in the format Nsssssss where N is the length
+  of the (NOT NULL TERMINATED) string rapresenting the share
+  path. (magma code uses cnetstrsend and cnetstrcpy).
+
+  mount.magma now has a --share=<STRING> command line option
+  to specify the share to be mounted.
+
+  magmad should be modified to support multiple shares.
+
+STATUS OF OPERATIONS:
+
+  Names refer to protocol_fuse.c:
+
+   transmit_getattr(s): completed. not tested on remote.
+  transmit_readlink(s): completed. not tested.
+   transmit_readdir(s): completed. not tested on remote.
+     transmit_mknod(s): completed. not tested on remote. (*)
+     transmit_mkdir(s): completed. not tested on remote. (*)
+    transmit_unlink(s): completed. not tested on remote. (*)
+     transmit_rmdir(s): completed. not tested on remote. (*)
+   transmit_symlink(s): completed. not tested on remote. (*)
+    transmit_rename(s): partially completed but practically working. (see EXDEV question!)
+      transmit_link(s): TODO (*)
+     transmit_chmod(s): completed. not tested on remote.
+     transmit_chown(s): completed. not tested on remote.
+  transmit_truncate(s): completed. not tested on remote.
+     transmit_utime(s): completed. not tested on remote.
+      transmit_open(s): completed. not tested on remote.
+      transmit_read(s): completed. not tested on remote.
+     transmit_write(s): completed. not tested on remote.
+    transmit_statfs(s): temporary completed. not tested on remote. (se note below)
+
+  Names refer to protocol_mount.c:
+       mountproc_null_1_svc: working.
+        mountproc_mnt_1_svc: working. (**) (***)
+       mountproc_dump_1_svc: completed.
+       mountproc_umnt_1_svc: working. (**) (***)
+    mountproc_umntall_1_svc: working. (**) (***)
+     mountproc_export_1_svc: working.
+  mountproc_exportall_1_svc: working.
+
+  Names refer to protocol_nfs.c:
+        nfsproc_null_2_svc: completed and tested.
+     nfsproc_getattr_2_svc: completed and tested.
+     nfsproc_setattr_2_svc: completed and tested.
+        nfsproc_root_2_svc: obsolete call which does nothing
+      nfsproc_lookup_2_svc: completed.
+    nfsproc_readlink_2_svc: completed.
+     nfsproc_readdir_2_svc: completed locally. lacking remote code. has malloc
+                            problems!
+      nfsproc_create_2_svc: 
+       nfsproc_mkdir_2_svc: 
+      nfsproc_remove_2_svc: 
+       nfsproc_rmdir_2_svc: 
+     nfsproc_symlink_2_svc: 
+      nfsproc_rename_2_svc: 
+        nfsproc_link_2_svc: 
+        nfsproc_read_2_svc: 
+  nfsproc_writecache_2_svc: 
+       nfsproc_write_2_svc: 
+      nfsproc_statfs_2_svc: completed and tested.
+ 
+NOTES ON OPERATIONS:
+
+  (*):
+  All those operations uses one of magma_add_flare_to_parent()
+  or magma_remove_flare_from_parent(), both implemented
+  in dir_ops.c. those two functions are implemented just
+  on local: remote part is totally missing! Before implementing
+  that, magma can't work on a lava-ring of more than 1
+  vulcano! a debug statement like that:
+
+  -magma- <<<<<MISSING REMOTE CODE HERE: file_name.c:line_num>>>>>
+
+  has been added to remember that!
+
+  statfs and nfsproc_statfs_2_svc:
+  this call should return informations about filesystem
+  each filesystem has its own set of attributes which are
+  returned, even network filesystems like NFS or CODA. so
+  statfs in not really implemented (informations about
+  underlying filesystem will be returned instead of proper
+  profile of magma!). for example: df(8) uses statfs()
+  to print free space on filesystem (and for sure even
+  the kernel needs this information). magma should reply
+  with the sum of all available space on all nodes, not
+  just local space left!
+
+  link and nfsproc_link_2_svc:
+  big problem! can't use "natural" hard link because
+  flares can be on different servers. So a new kind of
+  flare should be created? That's a big risk because
+  we'll leave POSIX path! But a symlink (containing the
+  path of the original flare) with something in metadata
+  declaring that this flare is our replacement of
+  "hard link" can be done.
+
+  (**):
+  All those operations should save informations about
+  peer client in internal database and remove them if
+  clients umount the filesystem. still to be coded.
+
+  (***):
+  All those operations should add authentication and
+  authorization code. still to be coded.
+
+# vim:ts=8
