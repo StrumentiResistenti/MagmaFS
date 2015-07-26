@@ -1,0 +1,5 @@
+bin_PROGRAMS = magma_ls
+
+magma_ls_SOURCES = ls.c
+magma_ls_CFLAGS = $(GLIB_CFLAGS) -D_NET_LAYER_INCLUDE_GET_SOCKET -DMAGMA_TOOLS -DMAGMA_EXCLUDE_XLATE
+magma_ls_LDADD = -lm $(GLIB_LIBS) -lmagma
