@@ -100,9 +100,9 @@ The mountpoint is specified as the last argument. Every volcano can be contacted
 
 ## Routing and proxying
 
-To access a flare, a client should ideally contact the volcano owning it. However current client implementation just sends each request to the node selected during mount operation with the `--host` argument. When that node receives a request, it first calculate the SHA1 key for the flare path to route the request. Routing the request means identifying the right volcano the request should be addressed to.
+To access a flare, a client should ideally contact the volcano owning it. However current client implementation just sends each request to the node selected with the `--host` argument during the mount operation. When that node receives a request, it first calculate the SHA1 key for the flare path to route the request. Routing the request means identifying the right volcano the request should be addressed to.
 
-For this reason, `magmad` acts as a transparent proxy for incoming request. If a request must be managed by another node, `magmad` just forwards it and sends the response back to the originating client. When the client implementation will be refined to download the lava topology to address requests to responsible nodes, the proxy feature will be used less frequently, but will however remain crucial to handle a special case. I could happen that a volcano has commited a key to its sibling node for load balancing purposes and the requesting client could still hold the outdated network topology. The proxying feature ensures that the request is fulfiled in any case.
+For this reason, `magmad` acts as a transparent proxy for incoming request. If a request must be managed by another node, `magmad` just forwards it and sends the response back to the originating client. When the client implementation will be refined to download the lava topology to address requests to responsible nodes, the proxy feature will be used less frequently, but will however remain crucial to handle a special case. Indeed it could happen that a volcano has commited a key to its sibling node for load balancing purposes and the requesting client still holds the outdated network topology. The proxying feature ensures that the request is fulfiled in any case.
 
 ## Balancing
 
