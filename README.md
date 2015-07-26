@@ -96,15 +96,17 @@ To restart a network just run each node without any `-b` or `-r` option. Lava no
 
     $ mount.magma --host=192.168.1.20 -s --key=m4gm4s3cr3t ~/magma
 
-The mountpoint is specified as the last argument. Every volcano can be contacted to mount the lava network. The mount protocol will evolve to download the whole network topology so a client can directly request a key to the hosting node instead of requesting every key to the node received with the `--host` argument.
+The mountpoint is specified as the last argument. Every volcano can be contacted to mount the lava network.
 
 ## Routing and proxying
 
-When a file is accessed, the SHA1 of its path is calculated and used to route the request to the volcano holding the key. `magmad` acts as a transparent proxy for incoming requests. If a request for another node is received, it is forwarded and the response is forwarded to the originating client. In current setup this is necessary because the client address all its requests to the volcano specified by the `--host` argument. In future releases, clients will obtain the lava topology to directly address requests to pertaining nodes. The proxy feature will resolve situations where the client has an outdated topology and sends a request for a key to the node that holded it until before balancing the key to its sibling node.
+To access a flare, a client should ideally contact the volcano owning it. However current client implementation just sends each request to the node selected during mount operation with the `--host` argument. When that node receives a request, it first calculate the SHA1 key for the flare path to route the request. Routing the request means identifying the right volcano the request should be addressed to.
+
+For this reason, `magmad` acts as a transparent proxy for incoming request. If a request must be managed by another node, `magmad` just forwards it and sends the response back to the originating client. When the client implementation will be refined to download the lava topology to address requests to responsible nodes, the proxy feature will be used less frequently, but will however remain crucial to handle a special case. I could happen that a volcano has commited a key to its sibling node for load balancing purposes and the requesting client could still hold the outdated network topology. The proxying feature ensures that the request is fulfiled in any case.
 
 ## Balancing
 
-Load balancing across the Lava network is still under development. The fundamental design dictates that a node can commit keys for balancing purposing only to its following node in the lava topology. In the wallace -> gromit -> penguin network, wallace can commit keys to gromit and gromit to penguin which can't commit keys to anyone. When a new node is required in the middle of the topology, the system administratror can add it manually or Magma can start a special operation to free its first node from all its keys and then rejoin in where required.
+Load balancing across the Lava network is still under development. The fundamental design dictates that a node can commit keys for balancing purposes to its following node only. In the (wallace -> gromit -> penguin) network, wallace can commit keys to gromit and gromit to penguin which can't commit keys to anyone. When a new node is required in the middle of the topology, the system administratror can add it manually or Magma can start a special operation to free its first node from all its keys and then rejoin it where required.
 
 ## The console
 
@@ -164,4 +166,3 @@ Load balancing across the Lava network is still under development. The fundament
     MAGMA [wallace]:/>
 
 The `print cache` command shows the flares loaded in the in-memory cache. The `print debug` command lists debug channels enabled for logging. The `inspect path` command prints metadata on a flare, and the `lava` command shows the Lava topology known to this node.
-
