@@ -30,3 +30,15 @@
 
 # Debug files
 *.dSYM/
+
+*.deps/
+*.dirstamp
+autom4te.cache
+config.log
+config.h.in
+*.swp
+.libs/
+.project
+magmad/magmad
+mount.magma/mount.magma
+*~

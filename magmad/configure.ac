@@ -2,8 +2,10 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.68])
+
 AC_INIT([magmad],[0.0.20080103],[tx0@strumentiresistenti.org])
-AM_INIT_AUTOMAKE(magmad, 0.0.20080103)
+AM_INIT_AUTOMAKE([subdir-objects])
+
 AC_COPYRIGHT([magmad is (C) Tx0 <tx0@strumentiresistenti.org>])
 AC_CONFIG_SRCDIR([src/magmad.c])
 AC_CONFIG_HEADER([config.h])
