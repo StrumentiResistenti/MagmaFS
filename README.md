@@ -102,3 +102,63 @@ When a file is accessed, the SHA1 of its path is calculated and used to route th
 ## Balancing
 
 Load balancing across the Lava network is still under development. The fundamental design dictates that a node can commit keys for balancing purposing only to its following node in the lava topology. In the wallace -> gromit -> penguin network, wallace can commit keys to gromit and gromit to penguin which can't commit keys to anyone. When a new node is required in the middle of the topology, the system administratror can add it manually or Magma can start a special operation to free its first node from all its keys and then rejoin in where required.
+
+## The console
+
+`magmad` has a `telnet` accessible console on port 12002. Several commands are available:
+
+    $ telnet 192.168.1.20 12002
+    Trying 192.168.1.20...
+    Connected to 192.168.1.20.
+    Escape character is '^]'.
+
+    Welcome to MAGMA version 0.1.20150213
+    This is server wallace (192.168.1.20)
+    Type help [ENTER] for available commands.
+
+    MAGMA [wallace]:/> help
+
+          cache load: print number of flare actyally cached
+           cd <path>: change current directory
+          cat <path>: show content of file <path>
+          debug on X: enable debug on channel X (see print debug)
+         debug off X: enable debug on channel X (see print debug)
+        erase <path>: erase flare referred by <path>, only if not a directory
+                exit: close current session
+                help: print this message
+      inspect <path>: show available data on flare <path
+          debug on X: enable debug on channel X (see print debug)
+                lava: print network topology
+           ls <path>: show <path> contents
+         print cache: cache state as a tree
+         print debug: show current debug mask
+           print acl: print established ACL
+                 pwd: print working directory
+                quit: close current session
+            shutdown: shutdown magma server
+
+    MAGMA [wallace]:/> ls /.dht
+    
+    d---------      tx0      tx0          13 .
+    drwxrwxrwx     root     root          10 ..
+    ----------     root     root         288 wallace
+ 
+     -- total entries: 3
+ 
+    MAGMA [wallace]:/> cat /.dht/wallace
+    hashpath = /tmp/magma
+    servername = wallace.myplace.taz
+    nickname = wallace
+    ipaddr = 192.168.1.20
+    port = 12000
+    bandwidth = 1
+    bootserver = (null)
+    secretkey = m4gm4s3cr3t
+    load = 0.000000
+    start_key = 0000000000000000000000000000000000000000
+    stop_key = ffffffffffffffffffffffffffffffffffffffff
+ 
+    MAGMA [wallace]:/>
+
+The `print cache` command shows the flares loaded in the in-memory cache. The `print debug` command lists debug channels enabled for logging. The `inspect path` command prints metadata on a flare, and the `lava` command shows the Lava topology known to this node.
+
