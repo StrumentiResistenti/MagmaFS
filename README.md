@@ -18,8 +18,8 @@ balancer that will move keys across nodes to equalize the pressure on the whole 
 A Magma filesystem can be mounted on Linux using the provided `mount.magma` command. It requires
 *FUSE support* in the kernel.
 
-Magma uses UDP datagram for its Flare (data) and Node (metadata) protocols, respectively defaulting
-on ports 12000 and 12001. On port 12002 it features a TCP console which can be reached with telnet.
+Magma uses UDP datagrams for its Flare (data) and Node (metadata) protocols, respectively defaulting
+on ports 12000 and 12001. On port 12002 it features a TCP console which can be reached using `telnet`.
 
 A Magma network can be already built, shutdown and re-established, but **no extensive testing has
 been done on its reliability**.
