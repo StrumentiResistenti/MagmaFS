@@ -45,11 +45,11 @@ Magma uses the usual autotools setup:
 
 ## How to build a network
 
-A lava network is build by starting the first *magmad* with the `-b` option. For example this command:
+A lava network is built by starting the first *magmad* with the `-b` option. For example this command:
 
     $ magmad -n wallace -s wallace.intranet -k m4gm4s3cr3t -i 192.168.1.20 -b -d /srv/magma -Dfs
 
-starts a lava network (-b) on the host called wallace (fully qualified name: wallace.intranet) using secret key `m4gm4s3cr3t` using address 192.168.1.20, storing data in `/srv/magma` and enabling logging for the flare operations (-Df) and the SQL queries used to store metadata (-Ds).
+starts a lava network (`-b`) on the host called *wallace* (fully qualified name: *wallace.intranet*) setting secret key *m4gm4s3cr3t* and binding to local address 192.168.1.20, storing data in `/srv/magma` and enabling logging for the flare operations (`-Df`) and the SQL queries used to store metadata (`-Ds`).
 
 ## How to expand a network
 
