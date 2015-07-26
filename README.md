@@ -97,5 +97,8 @@ The mountpoint is specified as the last argument. Every volcano can be contacted
 
 ## Routing and proxying
 
+When a file is accessed, the SHA1 of its path is calculated and used to route the request to the volcano holding the key. `magmad` acts as a transparent proxy for incoming requests. If a request for another node is received, it is forwarded and the response is forwarded to the originating client. In current setup this is necessary because the client address all its requests to the volcano specified by the `--host` argument. In future releases, clients will obtain the lava topology to directly address requests to pertaining nodes. The proxy feature will resolve situations where the client has an outdated topology and sends a request for a key to the node that holded it until before balancing the key to its sibling node.
 
+## Balancing
 
+Load balancing across the Lava network is still under development. The fundamental design dictates that a node can commit keys for balancing purposing only to its following node in the lava topology. In the wallace -> gromit -> penguin network, wallace can commit keys to gromit and gromit to penguin which can't commit keys to anyone. When a new node is required in the middle of the topology, the system administratror can add it manually or Magma can start a special operation to free its first node from all its keys and then rejoin in where required.
