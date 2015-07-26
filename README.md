@@ -22,3 +22,31 @@ on ports 12000 and 12001. On port 12002 it features a TCP console which can be r
 
 A Magma network can be already built, shutdown and re-established, but **no extensive testing has
 been done on its reliability**.
+
+## How to compile
+
+Magma is divided in four packages:
+
+ * libmagma
+ * magmad
+ * mount.magma
+ * magma_tools
+ 
+*libmagma* is the foundation library used by the other three packages and must be compiled first.
+*magmad* is the Magma daemon. A lava network is formed by several *magmad*. *mount.magma* runs on each client and mounts the lava network on a local directory. 
+
+Magma uses the usual autotools setup:
+
+    $ ./autogen.sh
+    $ ./configure
+    $ make
+    $ sudo make install
+
+## How to build a network
+
+A lava network is build by starting the first *magmad* with the `-b` option. For example this command:
+
+    $ magmad -n wallace -s wallace.intranet -k m4gm4s3cr3t -i 192.168.1.20 -b -d /srv/magma -Dfs
+
+starts a lava network (-b) on the host called wallace (fully qualified name: wallace.intranet) using secret key `m4gm4s3cr3t` using address 192.168.1.20, storing data in `/srv/magma` and enabling logging for the flare operations (-Df) and the SQL queries used to store metadata (-Ds).
+
