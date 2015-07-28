@@ -4,8 +4,8 @@ Magma is a **distributed network filesystem** for Linux. By distributed we mean 
 **Magma spreads data across a cluster** (called a *lava network*) of nodes (called *volcanos*).
 Each object managed by Magma (being it a file, a directory, a symlink, ...) is called *flare*.
 Each volcano holds a *slice of the SHA1 keyspace*. When a flare is stored inside Magma, its 
-path is hashed to produce an SHA1 key. The volcano node that holds the slice of the SHA1 
-keyspace that the key belongs to will host the flare.
+path is hashed to produce an SHA1 key. The flare will be hosted by the volcano that holds 
+the slice of the SHA1 keyspace the key belongs to.
 
 This design has been conceived to *overcome the well known problems bound to the presence of
 single point of failure roles* like master nodes, name nodes and so on.
