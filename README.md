@@ -4,8 +4,8 @@ Magma is a **distributed network filesystem** for Linux. By distributed we mean 
 **Magma spreads data across a cluster** (called a *lava network*) of nodes (called *volcanos*).
 Each object managed by Magma (being it a file, a directory, a symlink, ...) is called *flare*.
 Each volcano holds a *slice of the SHA1 keyspace*. When a flare is stored inside Magma, its 
-path is hashed to produce an SHA1 key. The volcano node that holds the slice of the SHA1 
-keyspace that the key belongs to will host the flare.
+path is hashed to produce an SHA1 key. The flare will be hosted by the volcano that holds 
+the slice of the SHA1 keyspace the key belongs to.
 
 This design has been conceived to *overcome the well known problems bound to the presence of
 single point of failure roles* like master nodes, name nodes and so on.
@@ -45,21 +45,23 @@ Magma uses the usual autotools setup:
 
 ## How to build a network
 
-A lava network is build by starting the first *magmad* with the `-b` option. For example this command:
+A lava network is built by starting the first *magmad* with the `-b` option. For example this command:
 
     $ magmad -n wallace -s wallace.intranet -k m4gm4s3cr3t -i 192.168.1.20 -b -d /srv/magma -Dfs
 
-starts a lava network (-b) on the host called wallace (fully qualified name: wallace.intranet) using secret key `m4gm4s3cr3t` using address 192.168.1.20, storing data in `/srv/magma` and enabling logging for the flare operations (-Df) and the SQL queries used to store metadata (-Ds).
+starts a lava network (`-b`) on the host called *wallace* (fully qualified name: *wallace.intranet*) setting secret key *m4gm4s3cr3t* and binding to local address 192.168.1.20, storing data in `/srv/magma` and enabling logging for the flare operations (`-Df`) and the SQL queries used to store metadata (`-Ds`).
 
 ## How to expand a network
 
-A lava network can be expanded by starting more nodes in *join mode*, passing to option `-r` the IP address of the node to be contacted for the join operation. For example:
+A lava network can be expanded by starting more nodes in *join mode*, passing with option `-r` the IP address of the node to be contacted for the join operation. For example:
 
     $ magmad -n gromit -s gromit.intranet -k m4gm4s3cr3t -i 192.168.1.21 -d /srv/magma -r 192.168.1.20 -DV
 
-`magmad` is started on a node called gromit on IP address 192.168.1.21 and is instructed to contact node at 192.168.1.20 (the previously started wallace node) to join the network after it. The remote node will guess the joining node key slice by taking its last unused key and committing it to the joining node. For example, being wallace the only node of the network, its key slice is the whole key space, from `0000000000000000000000000000000000000000` to `ffffffffffffffffffffffffffffffffffffffff`. It's last saved key is `8363a82ab9833cd88d90382b3984e834a83v23ab`, so it entrust the key slice from `8363a82ab9833cd88d90382b3984e834a83v23ac` to `ffffffffffffffffffffffffffffffffffffffff`.
+`magmad` is started on a node called gromit on IP address 192.168.1.21 and is instructed to contact node at address 192.168.1.20 (the previously started wallace node) to join the network after it. The remote node will guess the joining node key slice by taking the key right after its last used key and committing to the joining node the key slice between that key and its last key. 
 
-Joining node receives a copy of all the keys managed by the joined node and starts acting as a redundancy mirror of it. When a third node, called penguin, joins the network the redundancy topology will be:
+For example, being wallace the only node of the network, its key slice is the whole key space, from `0000000000000000000000000000000000000000` to `ffffffffffffffffffffffffffffffffffffffff`. It's last saved key is `8363a82ab9833cd88d90382b3984e834a83v23ab`, so it entrust to the joining node the key slice between `8363a82ab9833cd88d90382b3984e834a83v23ac` and `ffffffffffffffffffffffffffffffffffffffff`.
+
+Joining node receives a copy of all the keys managed by the joined node and starts acting as its redundant mirror. When a third node named *penguin* joins the network, the redundancy topology becomes:
 
 | keys of  | are replicated on |
 | -------- | ------------------|
@@ -94,15 +96,17 @@ To restart a network just run each node without any `-b` or `-r` option. Lava no
 
     $ mount.magma --host=192.168.1.20 -s --key=m4gm4s3cr3t ~/magma
 
-The mountpoint is specified as the last argument. Every volcano can be contacted to mount the lava network. The mount protocol will evolve to download the whole network topology so a client can directly request a key to the hosting node instead of requesting every key to the node received with the `--host` argument.
+The mountpoint is specified as the last argument. Every volcano can be contacted to mount the lava network.
 
 ## Routing and proxying
 
-When a file is accessed, the SHA1 of its path is calculated and used to route the request to the volcano holding the key. `magmad` acts as a transparent proxy for incoming requests. If a request for another node is received, it is forwarded and the response is forwarded to the originating client. In current setup this is necessary because the client address all its requests to the volcano specified by the `--host` argument. In future releases, clients will obtain the lava topology to directly address requests to pertaining nodes. The proxy feature will resolve situations where the client has an outdated topology and sends a request for a key to the node that holded it until before balancing the key to its sibling node.
+To access a flare, a client should ideally contact the volcano owning it. However current client implementation just sends each request to the node selected with the `--host` argument during the mount operation. When that node receives a request, it first calculate the SHA1 key for the flare path to route the request. Routing the request means identifying the right volcano the request should be addressed to.
+
+For this reason, `magmad` acts as a transparent proxy for incoming request. If a request must be managed by another node, `magmad` just forwards it and sends the response back to the originating client. When the client implementation will be refined to download the lava topology to address requests to responsible nodes, the proxy feature will be used less frequently, but will however remain crucial to handle a special case. Indeed it could happen that a volcano has commited a key to its sibling node for load balancing purposes and the requesting client still holds the outdated network topology. The proxying feature ensures that the request is fulfiled in any case.
 
 ## Balancing
 
-Load balancing across the Lava network is still under development. The fundamental design dictates that a node can commit keys for balancing purposing only to its following node in the lava topology. In the wallace -> gromit -> penguin network, wallace can commit keys to gromit and gromit to penguin which can't commit keys to anyone. When a new node is required in the middle of the topology, the system administratror can add it manually or Magma can start a special operation to free its first node from all its keys and then rejoin in where required.
+Load balancing across the Lava network is still under development. The fundamental design dictates that a node can commit keys for balancing purposes to its following node only. In the (wallace -> gromit -> penguin) network, wallace can commit keys to gromit and gromit to penguin which can't commit keys to anyone. When a new node is required in the middle of the topology, the system administratror can add it manually or Magma can start a special operation to free its first node from all its keys and then rejoin it where required.
 
 ## The console
 
@@ -162,4 +166,3 @@ Load balancing across the Lava network is still under development. The fundament
     MAGMA [wallace]:/>
 
 The `print cache` command shows the flares loaded in the in-memory cache. The `print debug` command lists debug channels enabled for logging. The `inspect path` command prints metadata on a flare, and the `lava` command shows the Lava topology known to this node.
-
