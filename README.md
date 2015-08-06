@@ -1,4 +1,6 @@
-# MagmaFS
+![MagmaFS](logo.png)          
+MagmaFS distributed file system
+========================================================================
 
 Magma is a **distributed network filesystem** for Linux. By distributed we mean that 
 **Magma spreads data across a cluster** (called a *lava network*) of nodes (called *volcanos*).
