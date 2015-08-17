@@ -59,11 +59,17 @@ A lava network can be expanded by starting more nodes in *join mode* with option
 
     $ magmad -n gromit -s gromit.intranet -k m4gm4s3cr3t -i 192.168.1.21 -d /srv/magma -r 192.168.1.20 -DV
 
-`magmad` is started on a node called *gromit* on IP address *192.168.1.21* and it's instructed to contact node at address 192.168.1.20 (the previously started wallace node) to join the network after it. The remote node will guess the joining node key slice by taking the key right after its last used key and committing to the joining node the key slice between that key and its last key. 
+`magmad` is started on a node called *gromit* on IP address *192.168.1.21* and it's instructed to contact node at address *192.168.1.20* (the previously started *wallace* node) to join the network after it. The remote node will commit to the joining node the key slice delimited by the key following its last used key and its last assigned key.
 
-For example, being wallace the only node of the network, its key slice is the whole key space, from `0000000000000000000000000000000000000000` to `ffffffffffffffffffffffffffffffffffffffff`. It's last saved key is `8363a82ab9833cd88d90382b3984e834a83v23ab`, so it entrust to the joining node the key slice between `8363a82ab9833cd88d90382b3984e834a83v23ac` and `ffffffffffffffffffffffffffffffffffffffff`.
+For example, being wallace the only node of the network, its key slice is the whole key space, from `0000000000000000000000000000000000000000` to `ffffffffffffffffffffffffffffffffffffffff`. It's last saved key is `8363a82ab9833cd88d90382b3984e834a83v23ab` while its last assigned key is obviously `ffffffffffffffffffffffffffffffffffffffff`. Thus *wallace* (the active node) entrusts to *gromit* (the joining node) the key slice between `8363a82ab9833cd88d90382b3984e834a83v23ac` (the key after its last saved key) and `ffffffffffffffffffffffffffffffffffffffff`. The magma ring topology would then be:
 
-Joining node receives a copy of all the keys managed by the joined node and starts acting as its redundant mirror. When a third node named *penguin* joins the network, the redundancy topology becomes:
+| lava topology   | wallace                                    | gromit                                     |
+| --------------- | ------------------------------------------ | ------------------------------------------ |
+| address         | *192.168.1.20*                             | *192.168.1.21*                             |
+| key slice start | `0000000000000000000000000000000000000000` | `8363a82ab9833cd88d90382b3984e834a83v23ac` |
+| key slice end   | `8363a82ab9833cd88d90382b3984e834a83v23ab` | `ffffffffffffffffffffffffffffffffffffffff` |
+
+Joining nodes receive a copy of all the keys managed by the joined node and start acting as its redundant mirror. When a third node named *penguin* joins the network after *gromit*, the redundancy topology becomes:
 
 | keys of  | are replicated on |
 | -------- | ------------------|
