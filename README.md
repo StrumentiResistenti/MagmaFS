@@ -51,15 +51,15 @@ A lava network is built by starting the first *magmad* with the `-b` option. For
 
     $ magmad -n wallace -s wallace.intranet -k m4gm4s3cr3t -i 192.168.1.20 -b -d /srv/magma -Dfs
 
-starts a lava network (`-b`) on the host called *wallace* (fully qualified name: *wallace.intranet*) setting secret key *m4gm4s3cr3t* and binding to local address 192.168.1.20, storing data in `/srv/magma` and enabling logging for the flare operations (`-Df`) and the SQL queries used to store metadata (`-Ds`).
+starts a lava network (`-b`) on the host called *wallace* (fully qualified name: *wallace.intranet*) setting secret key *m4gm4s3cr3t* and binding to local address *192.168.1.20*, storing data in `/srv/magma` and enabling logging for the flare operations (`-Df`) and the SQL queries used to store metadata (`-Ds`).
 
 ## How to expand a network
 
-A lava network can be expanded by starting more nodes in *join mode*, passing with option `-r` the IP address of the node to be contacted for the join operation. For example:
+A lava network can be expanded by starting more nodes in *join mode* with option `-r` followed by the IP address of the node to be contacted for the join operation. For example:
 
     $ magmad -n gromit -s gromit.intranet -k m4gm4s3cr3t -i 192.168.1.21 -d /srv/magma -r 192.168.1.20 -DV
 
-`magmad` is started on a node called gromit on IP address 192.168.1.21 and is instructed to contact node at address 192.168.1.20 (the previously started wallace node) to join the network after it. The remote node will guess the joining node key slice by taking the key right after its last used key and committing to the joining node the key slice between that key and its last key. 
+`magmad` is started on a node called *gromit* on IP address *192.168.1.21* and it's instructed to contact node at address 192.168.1.20 (the previously started wallace node) to join the network after it. The remote node will guess the joining node key slice by taking the key right after its last used key and committing to the joining node the key slice between that key and its last key. 
 
 For example, being wallace the only node of the network, its key slice is the whole key space, from `0000000000000000000000000000000000000000` to `ffffffffffffffffffffffffffffffffffffffff`. It's last saved key is `8363a82ab9833cd88d90382b3984e834a83v23ab`, so it entrust to the joining node the key slice between `8363a82ab9833cd88d90382b3984e834a83v23ac` and `ffffffffffffffffffffffffffffffffffffffff`.
 
