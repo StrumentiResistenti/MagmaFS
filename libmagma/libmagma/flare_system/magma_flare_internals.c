@@ -703,6 +703,14 @@ void magma_flare_update_stat(magma_flare_t *flare)
 		flare->st.st_size = st_tmp.st_size;
 		flare->st.st_blocks = st_tmp.st_blocks;
 		flare->st.st_blksize = st_tmp.st_blksize;
+
+		/*
+		 * update flare st_mode field, by first cleaning all the bits
+		 * but the format ones, and later or'ing it with the st_mode
+		 * field from the st_tmp buffer cleaned of the format bits
+		 */
+		flare->st.st_mode &= S_IFMT;
+		flare->st.st_mode |= st_tmp.st_mode & ~S_IFMT;
 	}
 }
 
@@ -1365,7 +1373,7 @@ int magma_init_flare_on_disk(magma_flare_t *flare)
 			}
 		}
 
-		chmod(flare->contents, S_IRUSR|S_IWUSR|S_IXUSR);
+		chmod(flare->contents, S_IRUSR|S_IWUSR);
 	}
 
 	return (0);
@@ -1421,14 +1429,10 @@ gboolean magma_save_flare(magma_flare_t *flare, gboolean init_flare)
 	 * save the flare in the SQL repository
 	 */
 	if (init_flare) {
+		chmod(flare->contents, flare->st.st_mode);
 		magma_flare_sql_save(flare);
 		magma_load_flare(flare);
 	}
-
-	/*
-	 * update flare->contents mode
-	 */
-	chmod(flare->contents, flare->st.st_mode);
 
 	/*
 	 * do specific actions

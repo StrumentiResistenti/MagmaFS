@@ -109,7 +109,7 @@ static int magma_client_getattr(const char *path, struct stat *stbuf)
 	magma_pktqs_getattr(socket, peer, uid, gid, path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received GETATTR(%s)", path);
 
-	if ((response.header.res == -1) && (response.header.err_no != ENOENT)) {
+	if ((response.header.res is -1) && (response.header.err_no != ENOENT)) {
 		dbg(LOG_ERR, DEBUG_ERR, "GETATTR(%s) error: %s", path, strerror(response.header.err_no));
 		magma_close_client_connection(socket, peer);
 	} else {
@@ -117,7 +117,7 @@ static int magma_client_getattr(const char *path, struct stat *stbuf)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-    return ((response.header.res == -1) ? -response.header.err_no : 0);
+    return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_readlink(const char *path, char *buf, size_t size)
@@ -141,7 +141,7 @@ static int magma_client_readlink(const char *path, char *buf, size_t size)
 	magma_pktqs_readlink(socket, peer, uid, gid, path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received READLINK(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "READLINK error: %s", strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -167,7 +167,7 @@ static int magma_client_readlink(const char *path, char *buf, size_t size)
 	 * Also is strange that in case of success the API mandates that 0
 	 * is returned instead of res byte read!
 	 */
-    return ((response.header.res == -1) ? -response.header.err_no : 0);
+    return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 #if MAGMA_OPTIMIZE_READDIR
@@ -237,7 +237,7 @@ static int magma_client_readdir(
 		/*
 		 * exit the loop if all the directory has been read
 		 */
-		if (MAGMA_DIR_IS_CLOSE == response.header.res) break;
+		if (MAGMA_DIR_IS_CLOSE is response.header.res) break;
 
 		/*
 		 * update loop offset
@@ -276,7 +276,7 @@ static int magma_client_readdir(
 
 	magma_pktqs_readdir(socket, peer, uid, gid, path, &response);
 
-	if ( response.header.res == MAGMA_DIR_IS_CLOSE ) {
+	if ( response.header.res is MAGMA_DIR_IS_CLOSE ) {
 		magma_close_client_connection(socket, peer);
 
 		dbg(LOG_ERR, DEBUG_ERR, "Server returned %d: %s", response.header.res, strerror(response.header.err_no));
@@ -300,7 +300,7 @@ static int magma_client_readdir(
 		} else break;
 	} while (!exit_cycle);
 
-	if (-1 == exit_cycle) {
+	if (exit_cycle is -1) {
 		dbg(LOG_INFO, DEBUG_PFUSE, "READDIR OK!");
 	} else {
 		dbg(LOG_INFO, DEBUG_PFUSE, "READDIR OK! [but filler returned %d]", exit_cycle);
@@ -332,7 +332,7 @@ static int magma_client_mknod(const char *path, mode_t mode, dev_t rdev)
 	magma_pktqs_mknod(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, mode, rdev, path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received MKNOD(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "MKNOD(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -342,7 +342,7 @@ static int magma_client_mknod(const char *path, mode_t mode, dev_t rdev)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no: 0);
+	return ((response.header.res is -1) ? -response.header.err_no: 0);
 }
 
 static int magma_client_mkdir(const char *path, mode_t mode)
@@ -365,7 +365,7 @@ static int magma_client_mkdir(const char *path, mode_t mode)
 	magma_pktqs_mkdir(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, mode, path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received MKDIR(%s)", path);
 
-	if (response.header.res == -1) {
+	if (response.header.res is -1) {
 		dbg(LOG_ERR, DEBUG_ERR, "MKDIR(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -375,7 +375,7 @@ static int magma_client_mkdir(const char *path, mode_t mode)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_unlink(const char *path)
@@ -398,7 +398,7 @@ static int magma_client_unlink(const char *path)
 	magma_pktqs_unlink(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received UNLINK(%s)", path);
 
-	if (response.header.res == -1) {
+	if (response.header.res is -1) {
 		dbg(LOG_ERR, DEBUG_ERR, "UNLINK(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -408,7 +408,7 @@ static int magma_client_unlink(const char *path)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_rmdir(const char *path)
@@ -431,7 +431,7 @@ static int magma_client_rmdir(const char *path)
 	magma_pktqs_rmdir(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received RMDIR(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "RMDIR(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -441,7 +441,7 @@ static int magma_client_rmdir(const char *path)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_symlink(const char *from, const char *to)
@@ -464,7 +464,7 @@ static int magma_client_symlink(const char *from, const char *to)
 	magma_pktqs_symlink(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, from, to, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received SYMLINK(%s, %s)", from, to);
 
-	if (response.header.res == -1) {
+	if (response.header.res is -1) {
 		dbg(LOG_ERR, DEBUG_ERR, "SYMLINK(%s, %s) error: %s", from, to, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -474,7 +474,7 @@ static int magma_client_symlink(const char *from, const char *to)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_rename(const char *from, const char *to)
@@ -497,14 +497,14 @@ static int magma_client_rename(const char *from, const char *to)
 	magma_pktqs_rename(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, from, to, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received RENAME(%s, %s)", from, to);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "RENAME(%s, %s) error: %s", from, to, strerror(response.header.err_no));
 	} else {
 		dbg(LOG_INFO, DEBUG_PFUSE, "RENAME(%s, %s) OK!", from, to);
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_link(const char *from, const char *to)
@@ -529,7 +529,7 @@ static int magma_client_link(const char *from, const char *to)
 	magma_pktqs_link(socket, peer, uid, gid, from, to);
 	magma_pktar_link(socket, peer, &response);
 
-	if (response.header.res == -1) {
+	if (response.header.res is -1) {
 		dbg(LOG_ERR, DEBUG_ERR, "LINK error: %s", strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -539,7 +539,7 @@ static int magma_client_link(const char *from, const char *to)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((resposne.header.res == -1) ? -response.header.err_no : 0);
+	return ((resposne.header.res is -1) ? -response.header.err_no : 0);
 #endif
 }
 
@@ -563,7 +563,7 @@ static int magma_client_chmod(const char *path, mode_t mode)
 	magma_pktqs_chmod(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, mode, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received CHMOD(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "CHMOD(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -573,7 +573,7 @@ static int magma_client_chmod(const char *path, mode_t mode)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_chown(const char *path, uid_t new_uid, gid_t new_gid)
@@ -596,7 +596,7 @@ static int magma_client_chown(const char *path, uid_t new_uid, gid_t new_gid)
 	magma_pktqs_chown(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, new_uid, new_gid, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received CHOWN(%s)", path);
 
-	if (response.header.res == -1) {
+	if (response.header.res is -1) {
 		dbg(LOG_ERR, DEBUG_ERR, "CHOWN(%s): error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -606,7 +606,7 @@ static int magma_client_chown(const char *path, uid_t new_uid, gid_t new_gid)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_truncate(const char *path, off_t size)
@@ -629,7 +629,7 @@ static int magma_client_truncate(const char *path, off_t size)
 	magma_pktqs_truncate(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, size, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received TRUNCATE(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "TRUNCATE(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -639,7 +639,7 @@ static int magma_client_truncate(const char *path, off_t size)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_utime(const char *path, struct utimbuf *buf)
@@ -662,7 +662,7 @@ static int magma_client_utime(const char *path, struct utimbuf *buf)
 	magma_pktqs_utime(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, buf->actime, buf->modtime, path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received UTIME(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "UTIME(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -673,7 +673,7 @@ static int magma_client_utime(const char *path, struct utimbuf *buf)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_open(const char *path, struct fuse_file_info *fi)
@@ -696,7 +696,7 @@ static int magma_client_open(const char *path, struct fuse_file_info *fi)
 	magma_pktqs_open(socket, peer, uid, gid, (fi->flags), path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received OPEN(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "OPEN(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -723,7 +723,7 @@ static int magma_client_open(const char *path, struct fuse_file_info *fi)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 GMutex magma_read_mutex;
@@ -750,7 +750,7 @@ static int magma_client_read(const char *path, char *buf, size_t size, off_t off
 	magma_pktqs_read(socket, peer, uid, gid, size, offset, path, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received READ(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "READ(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -762,7 +762,7 @@ static int magma_client_read(const char *path, char *buf, size_t size, off_t off
 	memcpy(buf, response.body.read.buffer, response.header.res);
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : response.header.res);
+	return ((response.header.res is -1) ? -response.header.err_no : response.header.res);
 }
 
 static int magma_client_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
@@ -786,7 +786,7 @@ static int magma_client_write(const char *path, const char *buf, size_t size, of
 	magma_pktqs_write(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, size, offset, path, buf, &response);
 	dbg(LOG_INFO, DEBUG_PFUSE, "Received WRITE(%s)", path);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "WRITE(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -796,7 +796,7 @@ static int magma_client_write(const char *path, const char *buf, size_t size, of
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : response.header.res);
+	return ((response.header.res is -1) ? -response.header.err_no : response.header.res);
 }
 
 static int magma_client_statfs(const char *path, struct statfs *statbuf)
@@ -821,7 +821,7 @@ static int magma_client_statfs(const char *path, struct statfs *statbuf)
 
 	memcpy(statbuf, &response.body.statfs.statbuf, sizeof response.body.statfs.statbuf);
 
-	if ( response.header.res == -1 ) {
+	if ( response.header.res is -1 ) {
 		dbg(LOG_ERR, DEBUG_ERR, "STATFS(%s) error: %s", path, strerror(response.header.err_no));
 		if (response.header.err_no != ENOENT) {
 			magma_close_client_connection(socket, peer);
@@ -831,7 +831,7 @@ static int magma_client_statfs(const char *path, struct statfs *statbuf)
 	}
 
 	magma_unlock_client_connection(socket, peer);
-	return ((response.header.res == -1) ? -response.header.err_no : 0);
+	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_release(const char *path, struct fuse_file_info *fi)
@@ -1058,7 +1058,7 @@ int main(int argc, char *argv[])
 	memset(magma_environment.log, 0, 255);
 	magma_init_log();
 
-	if (fuse_opt_parse(&args, &magma_environment, magma_opts, magma_opt_proc) == -1)
+	if (fuse_opt_parse(&args, &magma_environment, magma_opts, magma_opt_proc) is -1)
 		exit(1);
 
 	magma_expand_log_channels(&magma_environment);
@@ -1086,7 +1086,7 @@ int main(int argc, char *argv[])
 	 * here but can be overwritten on program start
 	 */
 	if (magma_environment.log[DEBUG_MALLOC]) {
-		if (getenv("MALLOC_TRACE") == NULL)
+		if (getenv("MALLOC_TRACE") is NULL)
 			setenv("MALLOC_TRACE", "/tmp/mount.magma.memorytrace", 1);
 		dbg(LOG_INFO, DEBUG_BOOT, "Enabling memory trace in file %s", getenv("MALLOC_TRACE"));
 		mtrace();
@@ -1111,7 +1111,7 @@ int main(int argc, char *argv[])
 
 	if (!magma_environment.remoteport) magma_environment.remoteport = 12000;
 
-	if ((!magma_environment.remotehost) || (strcmp(magma_environment.remotehost, "") == 0))
+	if ((!magma_environment.remotehost) || (strcmp(magma_environment.remotehost, "") is 0))
 		magma_environment.remotehost = g_strdup("localhost");
 
 	if (magma_environment.foreground) {
@@ -1119,13 +1119,13 @@ int main(int argc, char *argv[])
 		fuse_opt_add_arg(&args, "-f");
 	}
 
-	if ((!magma_environment.keyphrase) || (strcmp(magma_environment.keyphrase, "") == 0)) {
+	if ((!magma_environment.keyphrase) || (strcmp(magma_environment.keyphrase, "") is 0)) {
 		fprintf(stderr, "  Enter Keyphrase: ");
 		magma_environment.keyphrase = g_strdup("");
 	}
 
 	// getting remote ip from remote host name
-	if ((magma_environment.remoteip == NULL) && strlen(magma_environment.remotehost)) {
+	if ((magma_environment.remoteip is NULL) && strlen(magma_environment.remotehost)) {
 		dbg(LOG_INFO, DEBUG_NET, "Resolving %s to its IP address", magma_environment.remotehost);
 		struct hostent *he;
 		if ((he = gethostbyname(magma_environment.remotehost)) != NULL) {
@@ -1166,7 +1166,7 @@ int main(int argc, char *argv[])
 	init_dump_to_file("/tmp/mount.magma.dump");
 #endif /* MAGMA_ENABLE_DUMP_TO_FILE */
 
-#if GLIB_MAJOR_VERSION < 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION < 34)
+#if GLIB_MAJOR_VERSION < 2 || (GLIB_MAJOR_VERSION is 2 && GLIB_MINOR_VERSION < 34)
 	/* init GLib thread and type system */
 	g_type_init();
 #endif

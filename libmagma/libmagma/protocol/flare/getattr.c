@@ -150,7 +150,11 @@ GIOStatus magma_pktar_getattr(GSocket *socket, GSocketAddress *peer, magma_flare
 
 	gchar *ptr = magma_pktar(socket, peer, buffer, (magma_response *) response);
 
-	if (G_IO_STATUS_NORMAL != response->header.status || -1 == response->header.res || !ptr) return (G_IO_STATUS_AGAIN);
+	if (
+		response->header.status isNot G_IO_STATUS_NORMAL ||
+		response->header.res is -1 ||
+		!ptr
+	) return (G_IO_STATUS_AGAIN);
 
 	ptr = magma_decode_stat_struct(ptr, response->body.getattr.stbuf);
 

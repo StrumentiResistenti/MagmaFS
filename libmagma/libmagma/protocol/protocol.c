@@ -215,7 +215,7 @@ gpointer magma_manage_udp_service(magma_udp_service_context *context)
 			NULL,
 			&error);
 
-		if (-1 == length) {
+		if (length is -1) {
 			dbg(LOG_INFO, DEBUG_NET, "Error receiving next datagram: %s\n", error->message);
 			g_error_free(error);
 			g_object_unref(incoming->peer);
@@ -223,7 +223,7 @@ gpointer magma_manage_udp_service(magma_udp_service_context *context)
 			continue;
 		}
 
-		if (0 == length) {
+		if (length is 0) {
 			dbg(LOG_INFO, DEBUG_NET, "Connection closed by peer\n");
 			g_error_free(error);
 			g_object_unref(incoming->peer);
@@ -492,7 +492,7 @@ gchar *magma_parse_response_header(gchar *buffer, magma_response *response)
 	}
 
 	/* force err_no to 0 if res is not -1 */
-	if (-1 != response->generic_response.header.res)
+	if (response->generic_response.header.res is -1)
 		response->generic_response.header.err_no = 0;
 
 	gchar *ptr = buffer;
@@ -640,10 +640,13 @@ void magma_send_and_receive_base(
 		int again_counter = 0;
 		for (; again_counter < MAGMA_AGAIN_LIMIT; again_counter++) {
 			receiver(socket, peer, response);
-			if (G_IO_STATUS_AGAIN != response->generic_response.header.status) return;
+			if (response->generic_response.header.status isNot G_IO_STATUS_AGAIN) {
+				// response->generic_response.header.err_no = EIO; // ENOTCONN - ECONNREFUSED - EHOSTDOWN - EHOSTUNREACH
+				return;
+			}
 		}
 
-		if (G_IO_STATUS_NORMAL == response->generic_response.header.status) return;
+		if (response->generic_response.header.status is G_IO_STATUS_NORMAL) return;
 	}
 }
 

@@ -668,9 +668,8 @@ int magma_chmod(uid_t uid, gid_t gid, magma_ttl ttl, const char *path, mode_t mo
 				 * do the real chmod()
 				 */
 				response.header.res = chmod(flare->contents, mode);
-				if (response.header.res is -1) {
-					flare->st.st_mode &= ~ALLPERMS; /* zero all permission bits */
-					flare->st.st_mode |= mode;		/* apply new mode */
+				if (response.header.res isNot -1) {
+					magma_flare_update_stat(flare);
 					magma_dispose_flare(flare);
 					dbg(LOG_INFO, DEBUG_PFUSE, "CHMOD %s OK!", path);
 				}

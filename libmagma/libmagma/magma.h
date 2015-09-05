@@ -26,6 +26,9 @@
 
 #include "magma_setup.h"
 
+/*
+ * just making C more readable and less error prone ;)
+ */
 #define equals ==
 #define is ==
 #define isNot !=

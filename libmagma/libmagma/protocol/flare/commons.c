@@ -60,7 +60,11 @@ gchar *magma_pktar(GSocket *socket, GSocketAddress *peer, gchar *buffer, magma_r
 	response->generic_response.header.status = magma_receive_buffer(socket, peer, buffer, MAGMA_MAX_BUFFER_SIZE);
 
 	/* if the GIOStatus is not normal, return NULL */
-	if (G_IO_STATUS_NORMAL != response->generic_response.header.status) return (NULL);
+	if (response->generic_response.header.status isNot G_IO_STATUS_NORMAL) {
+		response->generic_response.header.res = -1;
+		response->generic_response.header.err_no = EIO;
+		return (NULL);
+	}
 
 	/* parse the response header */
 	gchar *ptr = magma_parse_response_header(buffer, response);
