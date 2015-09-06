@@ -356,14 +356,10 @@ extern int magma_bootstrap_network();
 \**************************************************************************/
 
 /* route a key inside main key space or redundant key space */
-#define magma_route_key(key) magma_internal_route_key(key,lava->first_node,0)
-#define magma_redundant_route_key(key) magma_internal_route_key(key,lava->first_node,1)
-extern magma_volcano *magma_internal_route_key(const char *key, magma_volcano *node, int redundant_space);
+extern magma_volcano *magma_route_key(const char *key, magma_volcano *node);
 
 /* route a file path inside main key space or redundant key space */
-#define magma_route_path(path) magma_internal_route_path(path,0)
-#define magma_redundant_route_path(path) magma_internal_route_path(path,1)
-extern magma_volcano *magma_internal_route_path(const char *path, int redundant_space);
+extern magma_volcano *magma_route_path(const char *path);
 
 /* return true if nodes are equal, false otherwise */
 extern int magma_compare_nodes(const magma_volcano *n1, const magma_volcano *n2);

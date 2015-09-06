@@ -638,10 +638,10 @@ magma_flare_t *magma_new_flare_(const char *path, char *file, int line)
 	flare->type = (strcmp(path, "/") is 0) ? MAGMA_FLARE_TYPE_DIR : MAGMA_FLARE_TYPE_UNKNOWN;
 
 	/* flare fields related to path */
-	flare->binhash = sha1_data(path,strlen(path));
+	flare->binhash = magma_sha1_data(path,strlen(path));
 	assert(flare->binhash isNot NULL);
 
-	flare->hash = armour_hash(flare->binhash);
+	flare->hash = magma_armour_hash(flare->binhash);
 	assert(flare->hash isNot NULL);
 
 	flare->parent_path = g_strdup(path);
@@ -655,10 +655,10 @@ magma_flare_t *magma_new_flare_(const char *path, char *file, int line)
 	}
 	
 	/* flare fields related to parent path */
-	flare->parent_binhash = sha1_data(flare->parent_path, strlen(flare->parent_path));
+	flare->parent_binhash = magma_sha1_data(flare->parent_path, strlen(flare->parent_path));
 	assert(flare->parent_binhash isNot NULL);
 
-	flare->parent_hash = armour_hash(flare->parent_binhash);
+	flare->parent_hash = magma_armour_hash(flare->parent_binhash);
 	assert(flare->parent_hash isNot NULL);
 
 	flare->path = g_strdup(path);
@@ -1159,7 +1159,7 @@ magma_flare_t *magma_search_by_hash(const unsigned char *hash)
 magma_flare_t *magma_search(const char *path)
 {
 	/* getting path's hash */
-	unsigned char *hash = sha1_data(path, strlen(path));
+	unsigned char *hash = magma_sha1_data(path, strlen(path));
 	if (!hash) {
 		dbg(LOG_ERR, DEBUG_FLARE, "Error converting hash for %s to printable form", path);
 		return (NULL);
@@ -1728,7 +1728,7 @@ int magma_add_flare_to_parent(magma_flare_t *flare)
 	 * get owner and redundant owner of the path
 	 */
 	magma_volcano *parent_owner = magma_route_path(flare->parent_path);
-	magma_volcano *red_parent_owner = parent_owner->next ? parent_owner->next : lava->first_node;
+	magma_volcano *red_parent_owner = magma_get_next_node(parent_owner);
 
 	/*
 	 * guess if this node is owner or redundant owner
@@ -1817,7 +1817,7 @@ int magma_remove_flare_from_parent(magma_flare_t *flare)
 	 * get owner and redundant owner of the path
 	 */
 	magma_volcano *parent_owner = magma_route_path(flare->parent_path);
-	magma_volcano *red_parent_owner = parent_owner->next ? parent_owner->next : lava->first_node;
+	magma_volcano *red_parent_owner = magma_get_next_node(parent_owner);
 
 	/*
 	 * guess if this node is owner or redundant owner

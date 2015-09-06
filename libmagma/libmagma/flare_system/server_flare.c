@@ -770,7 +770,7 @@ int magma_server_manage_mknod(GSocket *socket, GSocketAddress *peer, gchar *buff
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.mknod.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(red_owner, &myself))
 				magma_queue_replica(magma_redundant_mknod, request, red_owner);
@@ -866,7 +866,7 @@ int magma_server_manage_mkdir(GSocket *socket, GSocketAddress *peer, gchar *buff
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.mkdir.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(red_owner, &myself)) magma_queue_replica(magma_redundant_mkdir, request, red_owner);
 		} else {
@@ -958,7 +958,7 @@ int magma_server_manage_unlink(GSocket *socket, GSocketAddress *peer, gchar *buf
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(&myself, red_owner)) magma_queue_replica(magma_redundant_unlink, request, red_owner);
 	    } else {
@@ -1050,7 +1050,7 @@ int magma_server_manage_rmdir(GSocket *socket, GSocketAddress *peer, gchar *buff
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(&myself, red_owner)) magma_queue_replica(magma_redundant_rmdir, request, red_owner);
 	    } else {
@@ -1145,7 +1145,7 @@ int magma_server_manage_symlink(GSocket *socket, GSocketAddress *peer, gchar *bu
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(&myself, red_owner)) magma_queue_replica(magma_redundant_symlink, request, red_owner);
 	    } else {
@@ -1317,7 +1317,7 @@ int magma_server_manage_chmod(GSocket *socket, GSocketAddress *peer, gchar *buff
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(&myself, red_owner)) magma_queue_replica(magma_redundant_chmod, request, red_owner);
 	    } else {
@@ -1413,7 +1413,7 @@ int magma_server_manage_chown(GSocket *socket, GSocketAddress *peer, gchar *buff
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(&myself, red_owner)) magma_queue_replica(magma_redundant_chown, request, red_owner);
 	    } else {
@@ -1507,7 +1507,7 @@ int magma_server_manage_truncate(GSocket *socket, GSocketAddress *peer, gchar *b
 		/* redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.truncate.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(red_owner, &myself)) magma_queue_replica(magma_redundant_truncate, request, red_owner);
 	    } else {
@@ -1602,7 +1602,7 @@ int magma_server_manage_utime(GSocket *socket, GSocketAddress *peer, gchar *buff
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.utime.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(red_owner, &myself)) magma_queue_replica(magma_redundant_utime, request, red_owner);
 	    } else {
@@ -1705,7 +1705,7 @@ int magma_server_manage_write(GSocket *socket, GSocketAddress *peer, gchar *buff
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.write.path);
-			magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+			magma_volcano *red_owner = magma_get_next_node(owner);
 
 			if (!magma_compare_nodes(red_owner, &myself)) magma_queue_replica(magma_redundant_write, request, red_owner);
 		} else {

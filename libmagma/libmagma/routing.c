@@ -38,54 +38,39 @@
  *   that's when a node have the stop_key lesser than the
  *   start key, because it cross the ring limit
  */
-int magma_key_is_included(const char *key, magma_volcano *node, int redundant_space)
+int magma_key_is_included(const char *key, magma_volcano *node)
 {
-	g_assert(node != NULL);
-	g_assert(node->node_name != NULL);
-	g_assert(key != NULL);
+	g_assert(node isNot NULL);
+	g_assert(node->node_name isNot NULL);
+	g_assert(key isNot NULL);
 
 	dbg(LOG_INFO, DEBUG_ROUTING, "Checking key %s on node %s", key, node->node_name);
 
-	magma_volcano *next_node = node->next ? node->next : lava->first_node;
-	magma_volcano *compare_node = redundant_space ? next_node : node;
-
-	if (strcmp(key, compare_node->start_key) < 0) return -1; // key falls before this node slice
-	if (strcmp(key, compare_node->stop_key)  > 0) return  1; // key falls after this node slice
-	return 0;                                                // key falls inside this node slice
-
-#if 0
-	if ( strcmp(key, compare_node->stop_key) < 0 ) {
-		if ( strcmp(key, compare_node->start_key) >= 0 ) {
-			return 0;
-		} else {
-			return -1;
-		}
-	} else {
-		return 1;
-	}
-#endif
+	if (strcmp(key, node->start_key) < 0) return -1; // key falls before this node slice
+	if (strcmp(key, node->stop_key)  > 0) return  1; // key falls after  this node slice
+	return (0);                                      // key falls inside this node slice
 }
 
 /**
- * route a key in key space. never use this function directly.
- * use macros magma_route_key() and magma_redundant_route_key()
+ * route a key in key space.
  *
  * @param key pointer to key to be routed
  * @param node pointer to node used for operation in this round
  * @param redundant_space if true, use redundant key space for routing
  * @return pointer to owner node, NULL in case of failure.
  */
-magma_volcano *magma_internal_route_key(const char *key, magma_volcano *node, int redundant_space)
+magma_volcano *magma_route_key(const char *key, magma_volcano *node)
 {
-	if (node == NULL) return NULL;
-	int included = magma_key_is_included(key, node, redundant_space);	
+	if (node is NULL) return (NULL);
 
-	if ( included < 0 ) {
+	int included = magma_key_is_included(key, node);
+
+	if (included < 0) {
 		dbg(LOG_INFO, DEBUG_ROUTING, "trying routing on previous node");
-		return magma_internal_route_key(key, node->prev, redundant_space);
-	} else if ( included > 0 ) {
+		return magma_route_key(key, magma_get_previous_node(node));
+	} else if (included > 0) {
 		dbg(LOG_INFO, DEBUG_ROUTING, "trying routing on next node");
-		return magma_internal_route_key(key, node->next, redundant_space);
+		return magma_route_key(key, magma_get_next_node(node));
 	}
 
 	assert(node->node_name != NULL);
@@ -95,7 +80,8 @@ magma_volcano *magma_internal_route_key(const char *key, magma_volcano *node, in
 	dbg(LOG_INFO, DEBUG_ROUTING, "Key is on %s", node->node_name);
 	dbg(LOG_INFO, DEBUG_ROUTING, "  [%s", node->start_key);
 	dbg(LOG_INFO, DEBUG_ROUTING, "   %s]", node->stop_key);
-	return node;
+
+	return (node);
 }
 
 /**
@@ -103,33 +89,35 @@ magma_volcano *magma_internal_route_key(const char *key, magma_volcano *node, in
  * use macros route_path() and redundant_route_path()
  *
  * @param path pointer to path to be routed
- * @param redundant_space if true, use redundant key space for routing
  * @return pointer to owner node, NULL in case of failure.
  */
-magma_volcano *magma_internal_route_path(const char *path, int redundant_space)
+magma_volcano *magma_route_path(const char *path)
 {
-	magma_volcano *node;
-	char *armoured;
-	unsigned char *hash = sha1_data(path, strlen(path));
-
-	if ( hash == NULL ) {
-		dbg(LOG_ERR, DEBUG_ERR, "route_path; no hash calculated!");
-		return NULL;
+	if (!path) {
+		dbg(LOG_ERR, DEBUG_ERR, "magma_route_path called with NULL path");
+		return (NULL);
 	}
 
-	armoured = armour_hash(hash);
+	unsigned char *hash = magma_sha1_data(path, strlen(path));
+	if (!hash) {
+		dbg(LOG_ERR, DEBUG_ERR, "magma_route_path: no hash calculated");
+		return (NULL);
+	}
+
+	char *armoured = magma_armour_hash(hash);
 	g_free(hash);
 
-	assert(armoured != NULL);
-	assert(lava != NULL);
-	assert(lava->first_node != NULL);
-	assert(lava->first_node->node_name != NULL);
+	assert(armoured isNot NULL);
+	assert(lava isNot NULL);
+	assert(lava->first_node isNot NULL);
+	assert(lava->first_node->node_name isNot NULL);
 
 	dbg(LOG_INFO, DEBUG_ROUTING, "starting routing on node %s", lava->first_node->node_name);
 
-	node = magma_internal_route_key(armoured, lava->first_node, redundant_space);
+	magma_volcano *node = magma_route_key(armoured, lava->first_node);
 	g_free(armoured);
-	return node;
+
+	return (node);
 }
 
 /**

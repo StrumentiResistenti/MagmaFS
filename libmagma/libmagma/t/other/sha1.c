@@ -44,9 +44,9 @@ int main(int argc, char **argv)
 				continue;
 			}
 		} else {
-			hash = sha1_data(argv[c], strlen(argv[c]));
+			hash = magma_sha1_data(argv[c], strlen(argv[c]));
 		}
-		printf("%s  %s\n", armour_hash(hash), argv[c]);
+		printf("%s  %s\n", magma_armour_hash(hash), argv[c]);
 	}
 	return 0;
 }

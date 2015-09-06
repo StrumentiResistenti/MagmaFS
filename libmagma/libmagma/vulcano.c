@@ -87,37 +87,54 @@ magma_lava *magma_lava_new()
 	 * I'm the only volcano of the lava network
 	 */
 	magma_volcano *myself_clone = magma_volcano_clone(&myself);
-	lava->first_node = /* lava->middle_node = */ lava->last_node = myself_clone;
 
+	lava->first_node = lava->last_node = myself_clone;
 	lava->participants = 1;
 
-	return lava;
+	return (lava);
 }
 
 /**
- * Add a node to a lavanet near a sibling node
+ * Add a node to a lava ring near a sibling node
  *
  * @param newnode the new node to add
  * @param sibling the sibling node the new node will be added
  */
 int magma_volcano_add_near(magma_volcano *newnode, magma_volcano *sibling)
 {
+	/*
+	 * sibling is NULL: put the new node on top of the ring
+	 * this happens when this function is called with the
+	 * first node as sibling and the new node has a slice
+	 * that precedes the first node, so this function is
+	 * recursively called with (newnode, first_node->prev)
+	 * which expands to (newnode, NULL). newnode alse becomes
+	 * the lava first node.
+	 */
 	if (!sibling) {
-		/* top of the ring */
 		lava->first_node->prev = newnode;
 		newnode->next = lava->first_node;
 		lava->first_node = newnode;
 		return (1);
 	}
 
+	/*
+	 * compare newnode and sibling start keys
+	 */
 	int cmp = strcmp(newnode->start_key, sibling->start_key);
+
+	/*
+	 * asked to insert the same node twice: aborting
+	 */
 	if (cmp is 0) {
 		dbg(LOG_ERR, DEBUG_ERR, "Request to add existing node %s to the lava ring twice", newnode->fqdn_name);
 		return (0);
 	}
 
-	if ( cmp < 0) {
-		/* node is less than sibling, moving it up */
+	/*
+	 * newnode precedes the sibling, moving it up
+	 */
+	if (cmp < 0) {
 		return magma_volcano_add_near(newnode, sibling->prev);
 	}
 
@@ -133,10 +150,16 @@ int magma_volcano_add_near(magma_volcano *newnode, magma_volcano *sibling)
 
 	sibling->next = newnode;
 
+#if 0
+	/*
+	 * new lava ring is no longer a real ring
+	 * first_node->prev and last_node->next are NULL
+	 */
 	if (!sibling->prev) {
 		sibling->prev = newnode;
 		newnode->next = sibling;
 	}
+#endif
 
 	/*
 	 * Adjusting key slices for sibling nodes:

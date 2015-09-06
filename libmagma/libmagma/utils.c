@@ -144,8 +144,8 @@ char *magma_xlate_path(const char *path)
 	g_free(normpath);
 #endif /* MAGMA_SIMPLIFY_PATHS */
 
-	hash = sha1_data(path, strlen(path));
-	armoured = armour_hash(hash);
+	hash = magma_sha1_data(path, strlen(path));
+	armoured = magma_armour_hash(hash);
 	g_free(hash);
 	
 	xlated = g_strconcat(magma_environment.hashpath, "/", armoured, NULL);

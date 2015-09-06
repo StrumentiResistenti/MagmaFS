@@ -66,7 +66,12 @@ gchar *magma_node_format_response_header(gchar *buffer, gint32 res, gint16 err_n
  * Network join
  */
 magma_transaction_id
-magma_pktqs_join_network(GSocket *socket, GSocketAddress *peer, magma_volcano *node, magma_node_response *response) {
+magma_pktqs_join_network(
+	GSocket *socket,
+	GSocketAddress *peer,
+	magma_volcano *node,
+	magma_node_response *response)
+{
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
@@ -312,7 +317,11 @@ void magma_pktar_transmit_node(GSocket *socket, GSocketAddress *peer, magma_node
  * Topology transmission
  */
 magma_transaction_id
-magma_pktqs_transmit_topology(GSocket *socket, GSocketAddress *peer, guint16 offset, magma_node_response *response)
+magma_pktqs_transmit_topology(
+	GSocket *socket,
+	GSocketAddress *peer,
+	guint16 offset,
+	magma_node_response *response)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);

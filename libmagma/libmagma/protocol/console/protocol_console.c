@@ -222,7 +222,7 @@ gboolean magma_cache_traverser(gchar *key, magma_flare_t *flare, magma_session_e
 	if (magma_islnk(flare))  flarecast = 'L'; else
 	if (magma_issock(flare)) flarecast = 'S';
 
-	gchar *armoured = armour_hash(flare->binhash);
+	gchar *armoured = magma_armour_hash(flare->binhash);
 	gchar *last_access = g_time_val_to_iso8601(&flare->last_access);
 	gchar *line = g_strdup_printf("[%s] [in use: %s] [%c] %s\n", armoured, last_access, flarecast, flare->path);
 	g_free(last_access);
@@ -697,9 +697,9 @@ void magma_console_inspect(magma_session_environment *env, char *buffer, regmatc
 
 	magma_console_sendline(env, "\n");
 	char *cast = magma_strcast(flare);
-	owner = magma_route_key(flare->hash);
+	owner = magma_route_key(flare->hash, lava->first_node);
 	char *node = (owner != NULL) ? g_strdup(owner->node_name) : strdup("N/A");
-	owner = magma_redundant_route_key(flare->hash);
+	owner = owner->next ? owner->next : lava->first_node;
 	char *rnode = (owner != NULL) ? g_strdup(owner->node_name) : strdup("N/A");
 
 	magma_console_xsendline(env,
@@ -713,9 +713,9 @@ void magma_console_inspect(magma_session_environment *env, char *buffer, regmatc
 	g_free(node);
 	g_free(rnode);
 
-	owner = magma_route_key(flare->parent_hash);
+	owner = magma_route_key(flare->parent_hash, lava->first_node);
 	node = (owner != NULL) ? g_strdup(owner->node_name) : strdup("N/A");
-	owner = magma_redundant_route_key(flare->parent_hash);
+	owner = owner->next ? owner->next : lava->first_node;
 	rnode = (owner != NULL) ? g_strdup(owner->node_name) : strdup("N/A");
 
 	magma_flare_t *parent_flare = magma_search_or_create(flare->parent_path);

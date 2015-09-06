@@ -521,6 +521,8 @@ int magma_node_join_network(GSocket *socket, GSocketAddress *peer, gchar *buffer
 	return (1);
 }
 
+GMutex magma_finish_join_network_mutex;
+
 void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar *buffer, magma_node_request *request)
 {
 	/*
@@ -531,10 +533,12 @@ void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar
 	/*
 	 * Clone the lava ring
 	 */
+	g_mutex_lock(&magma_finish_join_network_mutex);
 	magma_lava *lava_clone = magma_lava_clone();
 	g_assert(lava_clone->participants equals lava->participants);
 
 	if (!lava_clone) {
+		g_mutex_unlock(&magma_finish_join_network_mutex);
 		dbg(LOG_ERR, DEBUG_ERR, "Can't allocate space for new node on manage_node");
 		magma_pktas_join_network(socket, peer, MAGMA_INTERNAL_ERROR, NULL, request->header.transaction_id);
 		return;
@@ -555,6 +559,7 @@ void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar
 		NULL); // dhtpath is not required to join a network
 
 	if (!new_node) {
+		g_mutex_unlock(&magma_finish_join_network_mutex);
 		dbg(LOG_ERR, DEBUG_ERR, "Can't allocate space for new node on manage_node");
 		magma_pktas_finish_join_network(socket, peer, MAGMA_INTERNAL_ERROR, 0, request->header.transaction_id);
 		magma_lava_destroy(lava_clone);
@@ -589,6 +594,7 @@ void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar
 	if ((strcmp(me->start_key, request->body.finish_join_network.start_key) isNot 0) ||
 			(strcmp(me->stop_key, request->body.finish_join_network.stop_key) isNot 0))
 	{
+		g_mutex_unlock(&magma_finish_join_network_mutex);
 		dbg(LOG_ERR, DEBUG_PNODE, "Error joining the network: remote node does not agree on this node slice");
 		magma_lava_destroy(lava_clone);
 		magma_pktas_finish_join_network(socket, peer, -1, 0, request->header.transaction_id);
@@ -618,6 +624,7 @@ void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar
 	 */
 	magma_lava *old_lava = lava;
 	lava = lava_clone;
+	g_mutex_unlock(&magma_finish_join_network_mutex);
 
 	/*
 	 * update myself

@@ -164,8 +164,8 @@ extern int magma_load_node_from_dht(magma_volcano *node);
 
 extern int magma_check_keyspace_continuity();
 
-extern magma_volcano *magma_get_next_node();
-extern magma_volcano *magma_get_previous_node();
+#define magma_get_next_node(node) (node->next ? node->next : lava->first_node)
+#define magma_get_previous_node(node) (node->prev ? node->prev : lava->last_node)
 
 extern int magma_save_node_profile();
 

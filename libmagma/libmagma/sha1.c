@@ -29,7 +29,7 @@
  * @param length size of memory buffer *data
  * @return binary hashing of given data
  */
-unsigned char *sha1_data(const void *data, unsigned int length)
+unsigned char *magma_sha1_data(const void *data, unsigned int length)
 {
 	// return g_compute_checksum_for_data(G_CHECKSUM_SHA1, data, length);
 
@@ -63,7 +63,7 @@ unsigned char *sha1_data(const void *data, unsigned int length)
  * @param hash the binary hash value to be armoured
  * @return pointer to armoured hash
  */
-char *armour_hash(const unsigned char *hash)
+char *magma_armour_hash(const unsigned char *hash)
 {
 	/* sha1 produces 160 bit (20 bytes) hashes which can be rappresented
 	 * by a 20*2 string of chars + 1 for \0 */

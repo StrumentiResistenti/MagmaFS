@@ -34,12 +34,13 @@
 #define SHA_READABLE_DIGEST_LENGTH SHA_DIGEST_LENGTH * 2 + 1
 #endif
 
-extern unsigned char *sha1_data(const void *data, unsigned int length);
-extern char *armour_hash(const unsigned char *hash);
-extern unsigned char *dearmour_hash(const char* armoured);
+extern unsigned char *magma_sha1_data(const void *data, unsigned int length);
+extern char *magma_armour_hash(const unsigned char *hash);
+extern unsigned char *magma_dearmour_hash(const char* armoured);
 
 /** decrement a key by 1 unit */
 #define magma_decrement_key(key) magma_decrement_key_p(key, key + 2*SHA_DIGEST_LENGTH - 1)
+
 /** increment a key by 1 unit */
 #define magma_increment_key(key) magma_increment_key_p(key, key + 2*SHA_DIGEST_LENGTH - 1)
 

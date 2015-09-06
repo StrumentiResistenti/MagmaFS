@@ -129,7 +129,7 @@ int magma_getattr(uid_t uid, gid_t gid, const char *path, struct stat *stbuf)
 	 * get owner and redundant owner of the path
 	 */
 	magma_volcano *owner = magma_route_path(path);
-	magma_volcano *red_owner = owner->next ? owner->next : lava->first_node; // magma_redundant_route_path(path);
+	magma_volcano *red_owner = magma_get_next_node(owner);
 
 	/*
 	 * guess if this node is owner or redundant owner
@@ -258,7 +258,7 @@ int magma_statfs(uid_t uid, gid_t gid, const char *path, struct statfs *statbuf)
 	 * get owner and redundant owner of the path
 	 */
 	magma_volcano *owner = magma_route_path(path);
-	magma_volcano *red_owner = owner->next ? owner->next : lava->first_node; // magma_redundant_route_path(path);
+	magma_volcano *red_owner = magma_get_next_node(owner);
 
 	/*
 	 * guess if this node is owner or redundant owner
@@ -769,7 +769,7 @@ int magma_open(uid_t uid, gid_t gid, const char *path, int flags)
 	 * get owner and redundant owner of the path
 	 */
 	magma_volcano *owner = magma_route_path(path);
-	magma_volcano *red_owner = owner->next ? owner->next : lava->first_node; // magma_redundant_route_path(path);
+	magma_volcano *red_owner = magma_get_next_node(owner);
 
 	/*
 	 * guess if this node is owner or redundant owner
@@ -858,7 +858,7 @@ int magma_read(uid_t uid, gid_t gid, const char *path, size_t size, off_t offset
 	 * get owner and redundant owner of the path
 	 */
 	magma_volcano *owner = magma_route_path(path);
-	magma_volcano *red_owner = owner->next ? owner->next : lava->first_node; // magma_redundant_route_path(path);
+	magma_volcano *red_owner = magma_get_next_node(owner);
 
 	/*
 	 * guess if this node is owner or redundant owner
@@ -1171,7 +1171,7 @@ int magma_readlink(uid_t uid, gid_t gid, const char *path, char *buf, size_t siz
 	 * get owner and redundant owner of the path
 	 */
 	magma_volcano *owner = magma_route_path(path);
-	magma_volcano *red_owner = owner->next ? owner->next : lava->first_node; // magma_redundant_route_path(path);
+	magma_volcano *red_owner = magma_get_next_node(owner);
 
 	/*
 	 * guess if this node is owner or redundant owner
@@ -1415,7 +1415,7 @@ magma_DIR_t *magma_opendir(uid_t uid, gid_t gid, const char *path)
 	}
 
 	magma_volcano *owner = magma_route_path(path);
-	magma_volcano *red_owner = owner->next ? owner->next : lava->first_node;
+	magma_volcano *red_owner = magma_get_next_node(owner);
 
 	if (magma_compare_nodes(owner, &myself) || magma_compare_nodes(red_owner, &myself)) {
 		/*

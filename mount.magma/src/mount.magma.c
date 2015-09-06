@@ -710,8 +710,8 @@ static int magma_client_open(const char *path, struct fuse_file_info *fi)
 		magma_fd *fd = g_new0(magma_fd, 1);
 		if (fd) {
 			g_strlcpy(fd->commit_url, response.body.open.commit_url, 2 * MAGMA_TERMINATED_PATH_LENGTH);
-			unsigned char* binhash = sha1_data(fd->commit_url, strlen(fd->commit_url));
-			gchar *armour = armour_hash(binhash);
+			unsigned char* binhash = magma_sha1_data(fd->commit_url, strlen(fd->commit_url));
+			gchar *armour = magma_armour_hash(binhash);
 			strcpy(fd->key, armour);
 			g_free(armour);
 			g_free(binhash);
