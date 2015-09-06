@@ -247,31 +247,31 @@ extern char *magma_explain_network_error(uint8_t error);
 /** Network join */
 extern magma_transaction_id magma_pktqs_join_network(GSocket *socket, GSocketAddress *peer, magma_volcano *node, magma_node_response *response);
 extern void magma_pktqr_join_network(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_join_network(GSocket *socket, GSocketAddress *peer, int res, magma_volcano *node, magma_transaction_id tid);
+extern void magma_pktas_join_network(GSocket *socket, GSocketAddress *peer, int res, magma_volcano *node, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_join_network(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
 /** Finish network join */
 extern magma_transaction_id magma_pktqs_finish_join_network(GSocket *socket, GSocketAddress *peer, magma_volcano *myself, magma_volcano *other, guint32 number_of_nodes, magma_node_response *response);
 extern void magma_pktqr_finish_join_network(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_finish_join_network(GSocket *socket, GSocketAddress *peer, int res, guint32 number_of_nodes, magma_transaction_id tid);
+extern void magma_pktas_finish_join_network(GSocket *socket, GSocketAddress *peer, int res, guint32 number_of_nodes, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_finish_join_network(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
 /** Transmit a key */
 extern magma_transaction_id magma_pktqs_transmit_key(GSocket *socket, GSocketAddress *peer, off_t offset, size_t size, gchar *chunk, magma_flare_t *flare, magma_node_response *response);
 extern void magma_pktqr_transmit_key(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_transmit_key(GSocket *socket, GSocketAddress *peer, int res, off_t offset, magma_transaction_id tid);
+extern void magma_pktas_transmit_key(GSocket *socket, GSocketAddress *peer, int res, off_t offset, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_transmit_key(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
 /** Add a flare to its parent directory */
 extern magma_transaction_id magma_pktqs_add_flare_to_parent(GSocket *socket, GSocketAddress *peer, const gchar *path, magma_node_response *response);
 extern void magma_pktqr_add_flare_to_parent(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_add_flare_to_parent(GSocket *socket, GSocketAddress *peer, int res, magma_transaction_id tid);
+extern void magma_pktas_add_flare_to_parent(GSocket *socket, GSocketAddress *peer, int res, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_add_flare_to_parent(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
 /** Remove a flare from its parent directory */
 extern magma_transaction_id magma_pktqs_remove_flare_from_parent(GSocket *socket, GSocketAddress *peer, const gchar *path, magma_node_response *response);
 extern void magma_pktqr_remove_flare_from_parent(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_remove_flare_from_parent(GSocket *socket, GSocketAddress *peer, int res, magma_transaction_id tid);
+extern void magma_pktas_remove_flare_from_parent(GSocket *socket, GSocketAddress *peer, int res, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_remove_flare_from_parent(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
 /**
@@ -288,10 +288,10 @@ extern void magma_pktqr_transmit_node(gchar *buffer, magma_node_request *request
 
 extern magma_transaction_id magma_pktqs_transmit_topology(GSocket *socket, GSocketAddress *peer, guint16 offset, magma_node_response *response);
 extern void magma_pktqr_transmit_topology(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_transmit_topology(GSocket *socket, GSocketAddress *peer, magma_lava *lava, int first_node, magma_transaction_id tid);
+extern void magma_pktas_transmit_topology(GSocket *socket, GSocketAddress *peer, magma_lava *lava, int first_node, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_transmit_topology(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
-extern void magma_pktas_transmit_node(GSocket *socket, GSocketAddress *peer, magma_volcano *node, int more_nodes_waiting, magma_transaction_id tid);
+extern void magma_pktas_transmit_node(GSocket *socket, GSocketAddress *peer, magma_volcano *node, int more_nodes_waiting, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_transmit_node(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
 /**
@@ -299,7 +299,7 @@ extern void magma_pktar_transmit_node(GSocket *socket, GSocketAddress *peer, mag
  */
 extern void magma_pktqs_heartbeat(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 extern void magma_pktqr_heartbeat(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_heartbeat(GSocket *socket, GSocketAddress *peer, magma_volcano *v, magma_transaction_id tid);
+extern void magma_pktas_heartbeat(GSocket *socket, GSocketAddress *peer, magma_volcano *v, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_heartbeat(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
 /**
@@ -307,7 +307,7 @@ extern void magma_pktar_heartbeat(GSocket *socket, GSocketAddress *peer, magma_n
  */
 extern void magma_pktqs_network_built(GSocket *socket, GSocketAddress *peer, magma_network_status status, magma_node_response *response);
 extern void magma_pktqr_network_built(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_network_built(GSocket *socket, GSocketAddress *peer, magma_transaction_id tid);
+extern void magma_pktas_network_built(GSocket *socket, GSocketAddress *peer, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_network_built(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 
 /**
@@ -315,6 +315,6 @@ extern void magma_pktar_network_built(GSocket *socket, GSocketAddress *peer, mag
  */
 extern void magma_pktqs_shutdown(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 extern void magma_pktqr_shutdown(gchar *buffer, magma_node_request *request);
-extern void magma_pktas_shutdown(GSocket *socket, GSocketAddress *peer, magma_transaction_id tid);
+extern void magma_pktas_shutdown(GSocket *socket, GSocketAddress *peer, magma_transaction_id tid, magma_flags flags);
 extern void magma_pktar_shutdown(GSocket *socket, GSocketAddress *peer, magma_node_response *response);
 

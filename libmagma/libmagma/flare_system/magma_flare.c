@@ -1642,11 +1642,17 @@ void magma_clean_shutdown()
  * @param peer a GInetSocketAddress to save remote peer information
  * @transaction_id the ID of the failed transaction
  */
-void magma_send_udp_failure(GSocket *socket, GSocketAddress *peer, int err_no, magma_transaction_id transaction_id) {
+void magma_send_udp_failure(
+	GSocket *socket,
+	GSocketAddress *peer,
+	int err_no,
+	magma_transaction_id tid,
+	magma_flags flags)
+{
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, -1, err_no, transaction_id);
+	gchar *ptr = magma_format_response_header(buffer, -1, err_no, tid, flags);
 
 	magma_send_buffer(socket, peer, buffer, ptr - buffer);
 }

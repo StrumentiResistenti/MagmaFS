@@ -245,7 +245,7 @@ int magma_node_receive_key(GSocket *socket, GSocketAddress *peer, gchar *buffer,
 
 		if (res is -1) {
 			dbg(LOG_ERR, DEBUG_PNODE, "Failed to receive key %s: %s", request->body.send_key.path, strerror(_errno));
-			magma_pktas_transmit_key(socket, peer, -1, request->body.send_key.offset, request->header.transaction_id);
+			magma_pktas_transmit_key(socket, peer, -1, request->body.send_key.offset, request->header.transaction_id, 0);
 			magma_flare_write_unlock(flare);
 			magma_dispose_flare(flare);
 			return (1);
@@ -253,7 +253,7 @@ int magma_node_receive_key(GSocket *socket, GSocketAddress *peer, gchar *buffer,
 	} else {
 		/* can't open file, return an error */
 		dbg(LOG_ERR, DEBUG_PNODE, "Can't open %s: %s", flare->contents, strerror(errno));
-		magma_pktas_transmit_key(socket, peer, -1, request->body.send_key.offset, request->header.transaction_id);
+		magma_pktas_transmit_key(socket, peer, -1, request->body.send_key.offset, request->header.transaction_id, 0);
 		magma_flare_write_unlock(flare);
 		magma_dispose_flare(flare);
 		return (1);
@@ -265,7 +265,7 @@ int magma_node_receive_key(GSocket *socket, GSocketAddress *peer, gchar *buffer,
 	 * key chunk received and recorded
 	 */
 	off_t new_offset = request->body.send_key.offset + request->body.send_key.size;
-	magma_pktas_transmit_key(socket, peer, 0, new_offset, request->header.transaction_id);
+	magma_pktas_transmit_key(socket, peer, 0, new_offset, request->header.transaction_id, 0);
 
 	magma_dispose_flare(flare);
 	return (0);
@@ -361,8 +361,8 @@ int magma_join_network(char *ipaddr, int port)
 			if (
 				(i is topology_response.body.send_topology.transmitted_nodes - 1) &&
 				(!topology_response.body.send_topology.more_nodes_waiting)) {
-				lava->first_node->prev = new_node;
-				new_node->next = lava->first_node;
+				// lava->first_node->prev = new_node;
+				// new_node->next = lava->first_node;
 				break;
 			}
 		}
@@ -478,7 +478,7 @@ int magma_node_join_network(GSocket *socket, GSocketAddress *peer, gchar *buffer
 
 	if (!new_node) {
 		dbg(LOG_ERR, DEBUG_ERR, "Can't allocate space for new node on manage_node");
-		magma_pktas_join_network(socket, peer, MAGMA_INTERNAL_ERROR, NULL, request->header.transaction_id);
+		magma_pktas_join_network(socket, peer, MAGMA_INTERNAL_ERROR, NULL, request->header.transaction_id, 0);
 		return (1);
 	}
 
@@ -487,7 +487,7 @@ int magma_node_join_network(GSocket *socket, GSocketAddress *peer, gchar *buffer
 	 */
 	uint8_t res = magma_node_exists(new_node, lava);
 	if (res isNot MAGMA_OK) {
-		magma_pktas_join_network(socket, peer, res, new_node, request->header.transaction_id);
+		magma_pktas_join_network(socket, peer, res, new_node, request->header.transaction_id, 0);
 		dbg(LOG_ERR, DEBUG_ERR, "joining new node %s", new_node->node_name);
 		magma_explain_join_error(res);
 		magma_vulcano_destroy(new_node);
@@ -516,7 +516,7 @@ int magma_node_join_network(GSocket *socket, GSocketAddress *peer, gchar *buffer
 	/*
 	 * Inform the joining node of its place in the topology
 	 */
-	magma_pktas_join_network(socket, peer, MAGMA_OK, new_node, request->header.transaction_id);
+	magma_pktas_join_network(socket, peer, MAGMA_OK, new_node, request->header.transaction_id, 0);
 
 	return (1);
 }
@@ -540,7 +540,7 @@ void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar
 	if (!lava_clone) {
 		g_mutex_unlock(&magma_finish_join_network_mutex);
 		dbg(LOG_ERR, DEBUG_ERR, "Can't allocate space for new node on manage_node");
-		magma_pktas_join_network(socket, peer, MAGMA_INTERNAL_ERROR, NULL, request->header.transaction_id);
+		magma_pktas_join_network(socket, peer, MAGMA_INTERNAL_ERROR, NULL, request->header.transaction_id, 0);
 		return;
 	}
 
@@ -561,7 +561,7 @@ void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar
 	if (!new_node) {
 		g_mutex_unlock(&magma_finish_join_network_mutex);
 		dbg(LOG_ERR, DEBUG_ERR, "Can't allocate space for new node on manage_node");
-		magma_pktas_finish_join_network(socket, peer, MAGMA_INTERNAL_ERROR, 0, request->header.transaction_id);
+		magma_pktas_finish_join_network(socket, peer, MAGMA_INTERNAL_ERROR, 0, request->header.transaction_id, 0);
 		magma_lava_destroy(lava_clone);
 		return;
 	}
@@ -597,7 +597,7 @@ void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar
 		g_mutex_unlock(&magma_finish_join_network_mutex);
 		dbg(LOG_ERR, DEBUG_PNODE, "Error joining the network: remote node does not agree on this node slice");
 		magma_lava_destroy(lava_clone);
-		magma_pktas_finish_join_network(socket, peer, -1, 0, request->header.transaction_id);
+		magma_pktas_finish_join_network(socket, peer, -1, 0, request->header.transaction_id, 0);
 		return;
 	}
 
@@ -612,7 +612,7 @@ void magma_node_finish_join_network(GSocket *socket, GSocketAddress *peer, gchar
 	/*
 	 * confirm network join
 	 */
-	magma_pktas_finish_join_network(socket, peer, 0, lava_clone->participants, request->header.transaction_id);
+	magma_pktas_finish_join_network(socket, peer, 0, lava_clone->participants, request->header.transaction_id, 0);
 
 	/*
 	 * transmit the whole key space
@@ -654,7 +654,7 @@ void magma_node_transmit_topology(GSocket *socket, GSocketAddress *peer, gchar *
 	 * receive the join request and adapt data to local endianness
 	 */
 	magma_pktqr_transmit_topology(buffer, request);
-	magma_pktas_transmit_topology(socket, peer, lava, request->body.send_topology.offset, request->header.transaction_id);
+	magma_pktas_transmit_topology(socket, peer, lava, request->body.send_topology.offset, request->header.transaction_id, 0);
 }
 
 /**
@@ -671,7 +671,7 @@ void magma_node_manage_add_flare_to_parent(
 	magma_flare_t *flare = magma_search_or_create(request->body.add_flare_to_parent.path);
 	int res = magma_add_flare_to_parent(flare);
 	magma_dispose_flare(flare);
-	magma_pktas_add_flare_to_parent(socket, peer, res, request->header.transaction_id);
+	magma_pktas_add_flare_to_parent(socket, peer, res, request->header.transaction_id, 0);
 }
 
 /**
@@ -688,7 +688,7 @@ void magma_node_manage_remove_flare_from_parent(
 	magma_flare_t *flare = magma_search_or_create(request->body.remove_flare_from_parent.path);
 	int res = magma_remove_flare_from_parent(flare);
 	magma_dispose_flare(flare);
-	magma_pktas_remove_flare_from_parent(socket, peer, res, request->header.transaction_id);
+	magma_pktas_remove_flare_from_parent(socket, peer, res, request->header.transaction_id, 0);
 }
 
 /**
@@ -697,7 +697,7 @@ void magma_node_manage_remove_flare_from_parent(
 void magma_node_manage_heartbeat(GSocket *socket, GSocketAddress *peer, gchar *buffer, magma_node_request *request)
 {
 	magma_pktqr_heartbeat(buffer, request);
-	magma_pktas_heartbeat(socket, peer, &myself, request->header.transaction_id);
+	magma_pktas_heartbeat(socket, peer, &myself, request->header.transaction_id, 0);
 	return;
 }
 
@@ -707,7 +707,7 @@ void magma_node_manage_heartbeat(GSocket *socket, GSocketAddress *peer, gchar *b
 void magma_node_manage_shutdown(GSocket *socket, GSocketAddress *peer, gchar *buffer, magma_node_request *request)
 {
 	magma_pktqr_shutdown(buffer, request);
-	magma_pktas_shutdown(socket, peer, request->header.transaction_id);
+	magma_pktas_shutdown(socket, peer, request->header.transaction_id, 0);
 
 	gchar *addr = magma_get_peer_addr(peer);
 	dbg(LOG_INFO, DEBUG_PNODE, "Shutdown request received by %s. Exiting now.", addr);
@@ -727,7 +727,7 @@ void magma_node_manage_network_built(GSocket *socket, GSocketAddress *peer, gcha
 	magma_volcano *v = magma_route_path(MAGMA_DHT_PATH);
 
 	if (strcmp(v->ip_addr, addr_string) == 0) {
-		magma_pktas_network_built(socket, peer, request->header.transaction_id);
+		magma_pktas_network_built(socket, peer, request->header.transaction_id, 0);
 
 		if (magma_network_ready != request->body.network_built.status) {
 			dbg(LOG_ERR, DEBUG_BOOT, "Error building network: coordinator says network build failed. Exiting now.");
@@ -736,7 +736,7 @@ void magma_node_manage_network_built(GSocket *socket, GSocketAddress *peer, gcha
 			magma_environment.state = request->body.network_built.status;
 		}
 	} else {
-		magma_pktas_network_built(socket, peer, request->header.transaction_id);
+		magma_pktas_network_built(socket, peer, request->header.transaction_id, 0);
 
 		dbg(LOG_ERR, DEBUG_BOOT,
 			"Error building network: coordinator transmits from %s while we expect %s. Exiting now.",
@@ -798,7 +798,7 @@ void magma_manage_udp_node_protocol(GSocket *socket, GSocketAddress *peer, gchar
 	gchar *ptr = magma_parse_request_header(buffer, (magma_request *) &request);
 	if (!ptr) {
 		dbg(LOG_WARNING, DEBUG_ERR, "error deserializing request headers");
-		magma_send_udp_failure(socket, peer, 0, request.header.transaction_id);
+		magma_send_udp_failure(socket, peer, 0, request.header.transaction_id, 0);
 	}
 
 	/*
@@ -825,7 +825,7 @@ void magma_manage_udp_node_protocol(GSocket *socket, GSocketAddress *peer, gchar
 	 */
 	if (!magma_optype_callbacks[request.header.type]) {
 		dbg(LOG_WARNING, DEBUG_ERR, "operation type unknown: %d", request.header.type);
-		magma_send_udp_failure(socket, peer, 254, request.header.transaction_id);
+		magma_send_udp_failure(socket, peer, 254, request.header.transaction_id, 0);
 		return;
 	}
 

@@ -107,12 +107,13 @@ void magma_pktas_join_network(
 	GSocketAddress *peer,
 	int res,
 	magma_volcano *node,
-	magma_transaction_id tid)
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, res, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, res, 0, tid, flags);
 
 	if (res is MAGMA_OK) {
 		g_assert(node);
@@ -202,12 +203,13 @@ void magma_pktas_finish_join_network(
 	GSocketAddress *peer,
 	int res,
 	guint32 number_of_nodes,
-	magma_transaction_id tid)
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, res, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, res, 0, tid, flags);
 
 	ptr = magma_serialize_32(ptr, number_of_nodes);
 
@@ -262,14 +264,15 @@ void magma_pktas_transmit_node(
 	GSocketAddress *peer,
 	magma_volcano *node,
 	int more_nodes_waiting,
-	magma_transaction_id tid)
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	if (!node) return;
 
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid, flags);
 
 	dbg(LOG_INFO, DEBUG_PNODE, "Sending new node %s (%s:%d) @%lu@...",
 		node->node_name, node->ip_addr, node->port, strlen(node->ip_addr));
@@ -347,7 +350,8 @@ void magma_pktas_transmit_topology(
 	GSocketAddress *peer,
 	magma_lava *lava,
 	int first_node,
-	magma_transaction_id tid)
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	if (!lava) return;
 
@@ -365,14 +369,14 @@ void magma_pktas_transmit_topology(
 	int i;
 	for (i = 0; i < first_node; i++) {
 		if (!v->next) {
-			gchar *ptr = magma_format_response_header(buffer, -1, ENOENT, tid);
+			gchar *ptr = magma_format_response_header(buffer, -1, ENOENT, tid, flags);
 			magma_send_buffer(socket, peer, buffer, ptr - buffer);
 			return;
 		}
 		v = v->next;
 	}
 
-	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid, 0);
 
 	/*
 	 * the first byte of the payload is the number of nodes
@@ -511,11 +515,18 @@ void magma_pktqr_transmit_key(gchar *buffer, magma_node_request *request) {
 	request->body.send_key.chunk = ptr;									/* the chunk itself */
 }
 
-void magma_pktas_transmit_key(GSocket *socket, GSocketAddress *peer, int res, off_t offset, magma_transaction_id tid) {
+void magma_pktas_transmit_key(
+	GSocket *socket,
+	GSocketAddress *peer,
+	int res,
+	off_t offset,
+	magma_transaction_id tid,
+	magma_flags flags)
+{
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, res, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, res, 0, tid, flags);
 
 	ptr = magma_serialize_64(ptr, offset);
 
@@ -563,11 +574,17 @@ void magma_pktqr_add_flare_to_parent(gchar *buffer, magma_node_request *request)
 	ptr = magma_deserialize_string(ptr, request->body.add_flare_to_parent.path);	/* the flare path */
 }
 
-void magma_pktas_add_flare_to_parent(GSocket *socket, GSocketAddress *peer, int res, magma_transaction_id tid) {
+void magma_pktas_add_flare_to_parent(
+	GSocket *socket,
+	GSocketAddress *peer,
+	int res,
+	magma_transaction_id tid,
+	magma_flags flags)
+{
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, res, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, res, 0, tid, flags);
 
 	magma_send_buffer(socket, peer, buffer, ptr - buffer);
 }
@@ -613,11 +630,17 @@ void magma_pktqr_remove_flare_from_parent(gchar *buffer, magma_node_request *req
 	ptr = magma_deserialize_string(ptr, request->body.remove_flare_from_parent.path);	/* the flare path */
 }
 
-void magma_pktas_remove_flare_from_parent(GSocket *socket, GSocketAddress *peer, int res, magma_transaction_id tid) {
+void magma_pktas_remove_flare_from_parent(
+	GSocket *socket,
+	GSocketAddress *peer,
+	int res,
+	magma_transaction_id tid,
+	magma_flags flags)
+{
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, res, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, res, 0, tid, flags);
 
 	magma_send_buffer(socket, peer, buffer, ptr - buffer);
 }
@@ -652,12 +675,17 @@ void magma_pktqr_heartbeat(gchar *buffer, magma_node_request *request)
 	(void) request;
 }
 
-void magma_pktas_heartbeat(GSocket *socket, GSocketAddress *peer, magma_volcano *v, magma_transaction_id tid)
+void magma_pktas_heartbeat(
+	GSocket *socket,
+	GSocketAddress *peer,
+	magma_volcano *v,
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid, flags);
 
 #if 0
 	guint16 load = (int) 100.0 * v->load;
@@ -721,12 +749,16 @@ void magma_pktqr_network_built(gchar *buffer, magma_node_request *request)
 	ptr = magma_deserialize_8(ptr, &request->body.network_built.status);
 }
 
-void magma_pktas_network_built(GSocket *socket, GSocketAddress *peer, magma_transaction_id tid)
+void magma_pktas_network_built(
+	GSocket *socket,
+	GSocketAddress *peer,
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid, flags);
 	magma_send_buffer(socket, peer, buffer, ptr - buffer);
 }
 
@@ -759,12 +791,16 @@ void magma_pktqr_shutdown(gchar *buffer, magma_node_request *request)
 	(void) request;
 }
 
-void magma_pktas_shutdown(GSocket *socket, GSocketAddress *peer, magma_transaction_id tid)
+void magma_pktas_shutdown(
+	GSocket *socket,
+	GSocketAddress *peer,
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid);
+	gchar *ptr = magma_format_response_header(buffer, 0, 0, tid, flags);
 	magma_send_buffer(socket, peer, buffer, ptr - buffer);
 }
 

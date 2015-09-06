@@ -171,12 +171,13 @@ void magma_pktas_readdir_extended(
 	GSocket *socket,
 	GSocketAddress *peer,
 	magma_flare_response *response,
-	magma_transaction_id tid)
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, response->header.res, response->header.err_no, tid);
+	gchar *ptr = magma_format_response_header(buffer, response->header.res, response->header.err_no, tid, flags);
 	ptr = magma_serialize_64(ptr, response->body.readdir_extended.offset);
 	ptr = magma_serialize_16(ptr, response->body.readdir_extended.entry_number);
 

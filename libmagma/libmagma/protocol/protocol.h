@@ -101,7 +101,8 @@ extern gchar *magma_format_response_header(
 	gchar *response,
 	magma_result res,
 	magma_errno err_no,
-	magma_transaction_id transaction_id);
+	magma_transaction_id transaction_id,
+	magma_flags flags);
 
 extern gchar *magma_parse_response_header(gchar *buffer, magma_response *response);
 

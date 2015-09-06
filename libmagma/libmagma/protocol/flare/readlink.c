@@ -49,12 +49,19 @@ void magma_pktqr_readlink(gchar *buffer, magma_flare_request *request)
 	ptr = magma_deserialize_string(ptr, request->body.readlink.path);
 }
 
-void magma_pktas_readlink(GSocket *socket, GSocketAddress *peer, int res, const gchar *path, int error, magma_transaction_id tid)
+void magma_pktas_readlink(
+	GSocket *socket,
+	GSocketAddress *peer,
+	int res,
+	const gchar *path,
+	int error,
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, res, error, tid);
+	gchar *ptr = magma_format_response_header(buffer, res, error, tid, flags);
 	ptr = magma_serialize_string(ptr, path);
 
 	magma_send_buffer(socket, peer, buffer, ptr - buffer);

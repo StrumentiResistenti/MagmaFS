@@ -131,11 +131,18 @@ gchar *magma_decode_magma_stat_struct(gchar *buffer, magma_stat_struct *statbuf)
 	return (ptr);
 }
 
-void magma_pktas_getattr(GSocket *socket, GSocketAddress *peer, int res, struct stat *statbuf, int error, magma_transaction_id tid)
+void magma_pktas_getattr(
+	GSocket *socket,
+	GSocketAddress *peer,
+	int res,
+	struct stat *statbuf,
+	int error,
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 
-	gchar *ptr = magma_format_response_header(buffer, res, error, tid);
+	gchar *ptr = magma_format_response_header(buffer, res, error, tid, flags);
 
 	if (-1 != res) {
 		ptr = magma_encode_stat_struct(statbuf, ptr);

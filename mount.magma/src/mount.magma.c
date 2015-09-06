@@ -51,10 +51,7 @@
 #define MAGMA_DEFAULT_TTL 2
 #endif
 
-#ifdef MAGMA_CACHE_SOCKETS
-#undef MAGMA_CACHE_SOCKETS
-#endif
-#define MAGMA_CACHE_SOCKETS FALSE
+#define MAGMA_CACHE_SOCKETS TRUE
 
 /**
  * Prepare the context on FUSE operations (gets uid and gid)
@@ -85,6 +82,102 @@ typedef struct {
  */
 GHashTable *magma_fds;
 
+GMutex magma_refresh_topology_mutex;
+
+void magma_refresh_topology()
+{
+	GSocketAddress *peer;
+	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, MAGMA_NODE_PORT, &peer);
+
+	/*
+	 * if the mutex is already locked, another thread has
+	 * started a topology refresh, so we can safely return here
+	 */
+	if (!g_mutex_trylock(&magma_refresh_topology_mutex)) return;
+
+	magma_lava *new_lava = g_new0(magma_lava, 1);
+	guint16 offset = 0;
+	int i = 0;
+
+	while (1) {
+		magma_node_response topology_response;
+		magma_pktqs_transmit_topology(socket, peer, offset, &topology_response);
+
+		if (topology_response.header.status isNot G_IO_STATUS_NORMAL) return;
+		if (topology_response.header.res isNot 0) return;
+
+		for (; i < topology_response.body.send_topology.transmitted_nodes; i++) {
+			magma_node_inside_topology *n = &(topology_response.body.send_topology.nodes[i]);
+
+			/*
+			 * failsafe check: port can't be zero, that means the
+			 * struct has not been filled
+			 */
+			if (!n->port) {
+				dbg(LOG_ERR, DEBUG_PNODE, "Null node received @%d/%d",
+					i, topology_response.body.send_topology.transmitted_nodes);
+				return;
+			}
+
+			/*
+			 * create the new node
+			 */
+			magma_volcano *new_node = magma_volcano_new(
+				n->node_name,
+				n->fqdn_name,
+				n->ip_addr,
+				n->port,
+				0, 0,
+				n->start_key,
+				n->stop_key,
+				NULL);
+
+			if (!new_node) {
+				dbg(LOG_ERR, DEBUG_ERR, "Null new node: aborting lava topology refresh");
+				return;
+			}
+
+			/*
+			 * add the node to the lava ring
+			 */
+			new_lava->participants++;
+
+			if (!new_lava->first_node) {
+				new_lava->first_node = new_lava->last_node = new_node;
+			} else {
+				new_lava->last_node->next = new_node;
+				new_node->prev = new_lava->last_node;
+				new_lava->last_node = new_node;
+			}
+
+			/*
+			 * if no more nodes are left to be received
+			 * then end the cycle
+			 */
+			if (
+				(i is topology_response.body.send_topology.transmitted_nodes - 1) &&
+				(!topology_response.body.send_topology.more_nodes_waiting)) {
+				break;
+			}
+		}
+
+		if (!topology_response.body.send_topology.more_nodes_waiting) break;
+	}
+
+	/*
+	 * replace registered topology
+	 */
+	magma_lava *old_lava = lava;
+	lava = new_lava;
+	if (old_lava) magma_lava_destroy(old_lava);
+
+	dbg(LOG_INFO, DEBUG_PFUSE, "network topology refreshed");
+
+	g_mutex_unlock(&magma_refresh_topology_mutex);
+	g_object_unref(socket);
+	g_object_unref(peer);
+}
+
 /**
  * lstat equivalent
  */
@@ -97,13 +190,17 @@ static int magma_client_getattr(const char *path, struct stat *stbuf)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending GETATTR(%s)", path);
 	magma_pktqs_getattr(socket, peer, uid, gid, path, &response);
@@ -116,7 +213,15 @@ static int magma_client_getattr(const char *path, struct stat *stbuf)
 		dbg(LOG_INFO, DEBUG_PFUSE, "GETATTR on %s OK!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
     return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -129,13 +234,17 @@ static int magma_client_readlink(const char *path, char *buf, size_t size)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending READLINK(%s)", path);
 	magma_pktqs_readlink(socket, peer, uid, gid, path, &response);
@@ -161,7 +270,14 @@ static int magma_client_readlink(const char *path, char *buf, size_t size)
 		dbg(LOG_INFO, DEBUG_PFUSE, "READLINK OK! (%s)", buf);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
 
 	/*
 	 * Also is strange that in case of success the API mandates that 0
@@ -186,18 +302,20 @@ static int magma_client_readdir(
 	dbg(LOG_INFO, DEBUG_PFUSE, "READDIR on %s", path);
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-	/*
-	 * lookup the directory in the local b-tree
-	 */
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	off_t looping_offset = offset;
+	gboolean refresh_topology = FALSE;
 
 	while (1) {
 		magma_pktqs_readdir_extended(socket, peer, uid, gid, path, looping_offset, &response);
@@ -234,6 +352,10 @@ static int magma_client_readdir(
 			}
 		}
 
+		if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+			refresh_topology = TRUE;
+		}
+
 		/*
 		 * exit the loop if all the directory has been read
 		 */
@@ -243,6 +365,15 @@ static int magma_client_readdir(
 		 * update loop offset
 		 */
 		looping_offset = response.body.readdir_extended.offset;
+	}
+
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (refresh_topology) {
+		magma_refresh_topology();
 	}
 
 	return (0);
@@ -266,13 +397,17 @@ static int magma_client_readdir(
 	dbg(LOG_INFO, DEBUG_PFUSE, "READDIR on %s", path);
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	magma_pktqs_readdir(socket, peer, uid, gid, path, &response);
 
@@ -306,7 +441,11 @@ static int magma_client_readdir(
 		dbg(LOG_INFO, DEBUG_PFUSE, "READDIR OK! [but filler returned %d]", exit_cycle);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
     return 0;
 }
 
@@ -320,13 +459,17 @@ static int magma_client_mknod(const char *path, mode_t mode, dev_t rdev)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending MKNOD(%s)", path);
 	magma_pktqs_mknod(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, mode, rdev, path, &response);
@@ -341,7 +484,15 @@ static int magma_client_mknod(const char *path, mode_t mode, dev_t rdev)
 		dbg(LOG_INFO, DEBUG_PFUSE, "MKNOD(%s) OK!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no: 0);
 }
 
@@ -353,13 +504,17 @@ static int magma_client_mkdir(const char *path, mode_t mode)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending MKDIR(%s)", path);
 	magma_pktqs_mkdir(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, mode, path, &response);
@@ -374,7 +529,15 @@ static int magma_client_mkdir(const char *path, mode_t mode)
 		dbg(LOG_INFO, DEBUG_PFUSE, "MKDIR(%s) OK!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -386,13 +549,17 @@ static int magma_client_unlink(const char *path)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending UNLINK(%s)", path);
 	magma_pktqs_unlink(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, &response);
@@ -407,7 +574,15 @@ static int magma_client_unlink(const char *path)
 		dbg(LOG_INFO, DEBUG_PFUSE, "UNLINK(%s) OK!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -419,13 +594,17 @@ static int magma_client_rmdir(const char *path)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending RMDIR(%s)", path);
 	magma_pktqs_rmdir(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, &response);
@@ -440,7 +619,15 @@ static int magma_client_rmdir(const char *path)
 		dbg(LOG_INFO, DEBUG_PFUSE, "RMDIR(%s) OK!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -452,13 +639,17 @@ static int magma_client_symlink(const char *from, const char *to)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(from);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", from);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", from);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending SYMLINK(%s, %s)", from, to);
 	magma_pktqs_symlink(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, from, to, &response);
@@ -473,7 +664,15 @@ static int magma_client_symlink(const char *from, const char *to)
 		dbg(LOG_INFO, DEBUG_PFUSE, "SYMLINK(%s, %s) OK!", from, to);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -485,13 +684,17 @@ static int magma_client_rename(const char *from, const char *to)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(from);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", from);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", from);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending RENAME(%s, %s)", from, to);
 	magma_pktqs_rename(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, from, to, &response);
@@ -503,44 +706,21 @@ static int magma_client_rename(const char *from, const char *to)
 		dbg(LOG_INFO, DEBUG_PFUSE, "RENAME(%s, %s) OK!", from, to);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
 static int magma_client_link(const char *from, const char *to)
 {
 	return magma_client_symlink(from, to);
-
-#if 0
-	magma_flare_response response;
-	int res = 0, server_errno = 0;
-	dbg(LOG_INFO, DEBUG_PFUSE, "LINK(%s, %s)", from, to);
-
-	MAGMA_CLIENT_SETUP_CONTEXT();
-
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
-
-	magma_pktqs_link(socket, peer, uid, gid, from, to);
-	magma_pktar_link(socket, peer, &response);
-
-	if (response.header.res is -1) {
-		dbg(LOG_ERR, DEBUG_ERR, "LINK error: %s", strerror(response.header.err_no));
-		if (response.header.err_no != ENOENT) {
-			magma_close_client_connection(socket, peer);
-		}
-	} else {
-		dbg(LOG_INFO, DEBUG_PFUSE, "LINK OK!");
-	}
-
-	magma_unlock_client_connection(socket, peer);
-	return ((resposne.header.res is -1) ? -response.header.err_no : 0);
-#endif
 }
 
 static int magma_client_chmod(const char *path, mode_t mode)
@@ -551,13 +731,17 @@ static int magma_client_chmod(const char *path, mode_t mode)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending CHMOD(%s)", path);
 	magma_pktqs_chmod(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, mode, &response);
@@ -572,7 +756,15 @@ static int magma_client_chmod(const char *path, mode_t mode)
 		dbg(LOG_INFO, DEBUG_PFUSE, "CHMOD(%s) performed!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -584,13 +776,17 @@ static int magma_client_chown(const char *path, uid_t new_uid, gid_t new_gid)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending CHOWN(%s)", path);
 	magma_pktqs_chown(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, new_uid, new_gid, &response);
@@ -605,7 +801,15 @@ static int magma_client_chown(const char *path, uid_t new_uid, gid_t new_gid)
 		dbg(LOG_INFO, DEBUG_PFUSE, "CHOWN(%s): performed ok!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -617,13 +821,17 @@ static int magma_client_truncate(const char *path, off_t size)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending TRUNCATE(%s)", path);
 	magma_pktqs_truncate(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, path, size, &response);
@@ -638,7 +846,15 @@ static int magma_client_truncate(const char *path, off_t size)
 		dbg(LOG_INFO, DEBUG_PFUSE, "TRUNCATE(%s) OK!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -650,13 +866,17 @@ static int magma_client_utime(const char *path, struct utimbuf *buf)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending UTIME(%s)", path);
 	magma_pktqs_utime(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, buf->actime, buf->modtime, path, &response);
@@ -672,7 +892,15 @@ static int magma_client_utime(const char *path, struct utimbuf *buf)
 		dbg(LOG_INFO, DEBUG_PFUSE, "UTIME(%s) OK!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -684,13 +912,17 @@ static int magma_client_open(const char *path, struct fuse_file_info *fi)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending OPEN(%s)", path);
 	magma_pktqs_open(socket, peer, uid, gid, (fi->flags), path, &response);
@@ -722,7 +954,15 @@ static int magma_client_open(const char *path, struct fuse_file_info *fi)
 		}
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -738,13 +978,17 @@ static int magma_client_read(const char *path, char *buf, size_t size, off_t off
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending READ(%s)", path);
 	magma_pktqs_read(socket, peer, uid, gid, size, offset, path, &response);
@@ -761,7 +1005,15 @@ static int magma_client_read(const char *path, char *buf, size_t size, off_t off
 
 	memcpy(buf, response.body.read.buffer, response.header.res);
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : response.header.res);
 }
 
@@ -774,13 +1026,17 @@ static int magma_client_write(const char *path, const char *buf, size_t size, of
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending WRITE(%s)", path);
 	magma_pktqs_write(socket, peer, MAGMA_DEFAULT_TTL, uid, gid, size, offset, path, buf, &response);
@@ -795,7 +1051,15 @@ static int magma_client_write(const char *path, const char *buf, size_t size, of
 		dbg(LOG_INFO, DEBUG_PFUSE, "WRITE(%s) OK! [%d bytes]", path, response.header.res);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : response.header.res);
 }
 
@@ -807,13 +1071,17 @@ static int magma_client_statfs(const char *path, struct statfs *statbuf)
 
 	MAGMA_CLIENT_SETUP_CONTEXT();
 	
-#if MAGMA_REUSE_SOCKET
-	GSocketAddress *peer = magma_environment.peer;
-	GSocket *socket = magma_environment.socket;
-#else
-	GSocketAddress *peer;
-	GSocket *socket = magma_open_client_connection(magma_environment.remoteip, magma_environment.remoteport, &peer);
-#endif
+	magma_volcano *owner = magma_route_path(path);
+	if (!owner) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': no owner found", path);
+		return (-EPROTO);
+	}
+	GSocketAddress *peer = NULL;
+	GSocket *socket = magma_open_client_connection(owner->ip_addr, owner->port, &peer);
+	if (!socket) {
+		dbg(LOG_ERR, DEBUG_PFUSE, "Error routing path '%s': can't create socket", path);
+		return (-EPROTO);
+	}
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "Sending STATFS(%s)", path);
 	magma_pktqs_statfs(socket, peer, uid, gid, path, &response);
@@ -830,7 +1098,15 @@ static int magma_client_statfs(const char *path, struct statfs *statbuf)
 		dbg(LOG_INFO, DEBUG_PFUSE, "STATFS(%s) OK!", path);
 	}
 
-	magma_unlock_client_connection(socket, peer);
+#if !MAGMA_CACHE_SOCKETS
+	g_object_unref(socket);
+	g_object_unref(peer);
+#endif
+
+	if (magma_flag_is_raised(response.header.flags, MAGMA_FLAG_REFRESH_TOPOLOGY)) {
+		magma_refresh_topology();
+	}
+
 	return ((response.header.res is -1) ? -response.header.err_no : 0);
 }
 
@@ -1176,8 +1452,14 @@ int main(int argc, char *argv[])
 	 */
 	magma_fds = g_hash_table_new_full(g_str_hash, (GEqualFunc) magma_str_cmp, g_free, g_free);
 
+	/*
+	 * init the read hash table
+	 */
+	magma_read_hash_table = g_hash_table_new(g_str_hash, g_str_equal);
+
 	magma_init_net_layer();
 
+#if 0
 	/*
 	 * open the socket
 	 */
@@ -1185,15 +1467,18 @@ int main(int argc, char *argv[])
 		magma_environment.remoteip,
 		magma_environment.remoteport,
 		&(magma_environment.peer));
-
-	// init the read hash table
-	magma_read_hash_table = g_hash_table_new(g_str_hash, g_str_equal);
+#endif
 
 	dbg(LOG_INFO, DEBUG_BOOT, "MAGMA: mounting %s:%d on %s",
 		magma_environment.remoteip,
 		magma_environment.remoteport,
 		magma_environment.mountpoint);
 	
+	/*
+	 * reading network topology
+	 */
+	magma_refresh_topology();
+
 	dbg(LOG_INFO, DEBUG_BOOT, "Fuse options:");
 	int fargc = 0;
 	while (fargc < argc - 1) {

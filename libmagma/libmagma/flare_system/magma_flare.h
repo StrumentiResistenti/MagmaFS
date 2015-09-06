@@ -361,7 +361,7 @@ extern void magma_cleanup(int s);
  */
 extern void magma_clean_shutdown();
 
-extern void magma_send_udp_failure(GSocket *socket, GSocketAddress *peer, int err_no, magma_transaction_id transaction_id);
+extern void magma_send_udp_failure(GSocket *socket, GSocketAddress *peer, int err_no, magma_transaction_id tid, magma_flags flags);
 
 extern void magma_node_transmit_key(GSocket *socket, GSocketAddress *peer, const gchar *flare_key);
 

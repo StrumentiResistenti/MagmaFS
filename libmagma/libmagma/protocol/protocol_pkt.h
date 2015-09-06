@@ -169,12 +169,13 @@ typedef struct MAGMA_PROTOCOL_ALIGNMENT {
 } magma_request_header;
 
 /**
- * FLARE RESPONSE HEADER
+ * Flare response header
  */
 typedef struct MAGMA_PROTOCOL_ALIGNMENT {
 	magma_result res;
 	magma_errno err_no;
 	magma_transaction_id transaction_id;
+	magma_flags flags;
 
 	/** used to report magma_pktar() status and to check for retransmission */
 	GIOStatus status;

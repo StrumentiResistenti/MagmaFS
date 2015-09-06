@@ -463,7 +463,8 @@ gchar *magma_format_response_header(
 	gchar *response,
 	magma_result res,
 	magma_errno err_no,
-	magma_transaction_id transaction_id)
+	magma_transaction_id transaction_id,
+	magma_flags flags)
 {
 	if (!response) {
 		dbg(LOG_ERR, DEBUG_ERR, "NULL response passed");
@@ -474,6 +475,7 @@ gchar *magma_format_response_header(
 	ptr = magma_serialize_16(ptr, err_no);
 	ptr = magma_serialize_32(ptr, res);
 	ptr = magma_serialize_16(ptr, transaction_id);
+	ptr = magma_serialize_32(ptr, flags);
 	return (ptr);
 }
 
@@ -500,6 +502,7 @@ gchar *magma_parse_response_header(gchar *buffer, magma_response *response)
 	ptr = magma_deserialize_16(ptr, (guint16 *) &response->generic_response.header.err_no);
 	ptr = magma_deserialize_32(ptr, (guint32 *) &response->generic_response.header.res);
 	ptr = magma_deserialize_16(ptr, &response->generic_response.header.transaction_id);
+	ptr = magma_deserialize_32(ptr, &response->generic_response.header.flags);
 
 	return (ptr);
 

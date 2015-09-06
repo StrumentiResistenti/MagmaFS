@@ -53,12 +53,18 @@ void magma_pktqr_truncate(gchar *buffer, magma_flare_request *request)
 	ptr = magma_deserialize_string(ptr, request->body.truncate.path);
 }
 
-void magma_pktas_truncate(GSocket *socket, GSocketAddress *peer, int res, int error, magma_transaction_id tid)
+void magma_pktas_truncate(
+	GSocket *socket,
+	GSocketAddress *peer,
+	int res,
+	int error,
+	magma_transaction_id tid,
+	magma_flags flags)
 {
 	gchar buffer[MAGMA_MAX_BUFFER_SIZE];
 	memset(buffer, 0, MAGMA_MAX_BUFFER_SIZE);
 
-	gchar *ptr = magma_format_response_header(buffer, res, error, tid);
+	gchar *ptr = magma_format_response_header(buffer, res, error, tid, flags);
 
 	magma_send_buffer(socket, peer, buffer, ptr - buffer);
 }

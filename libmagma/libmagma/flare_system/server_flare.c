@@ -127,6 +127,24 @@ void magma_init_server_flare()
 }
 
 /**
+ * Tells if a query on a path has properly reached this
+ * server or is misplaced.
+ *
+ * @param path the path to check
+ * @returns TRUE if path is owned (or redundantly owned) by this node, FALSE otherwise
+ */
+gboolean magma_misplaced_query(const gchar *path)
+{
+	magma_volcano *owner = magma_route_path(path);
+	if (magma_compare_nodes(owner, &myself)) return (FALSE);
+
+	magma_volcano *red_owner = magma_get_next_node(owner);
+	if (magma_compare_nodes(red_owner, &myself)) return (FALSE);
+
+	return (TRUE);
+}
+
+/**
  * Build the key to store the result of an operation
  *
  * @param peer the remote peer sending the request
@@ -295,6 +313,11 @@ int magma_server_manage_getattr(GSocket *socket, GSocketAddress *peer, gchar *bu
 
 	magma_pktqr_getattr(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.getattr.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.getattr.path, 'r')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -316,7 +339,7 @@ int magma_server_manage_getattr(GSocket *socket, GSocketAddress *peer, gchar *bu
 		server_errno = errno;
 	}
 
-	magma_pktas_getattr(socket, peer, res, &statbuf, server_errno, request->header.transaction_id);
+	magma_pktas_getattr(socket, peer, res, &statbuf, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "getattr #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.getattr.path,
@@ -334,6 +357,11 @@ int magma_server_manage_readlink(GSocket *socket, GSocketAddress *peer, gchar *b
 	char nbuf[PATH_MAX];
 
 	magma_pktqr_readlink(buffer, request);
+
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.readlink.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
 
 	if (!magma_validate_connection(socket, peer, request->body.readlink.path, 'r')) {
 		res = -1;
@@ -359,7 +387,7 @@ int magma_server_manage_readlink(GSocket *socket, GSocketAddress *peer, gchar *b
 
 	if (res != -1) res = strlen(nbuf);
 
-	magma_pktas_readlink(socket, peer, res, nbuf, server_errno, request->header.transaction_id);
+	magma_pktas_readlink(socket, peer, res, nbuf, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "readlink #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.readlink.path,
@@ -451,12 +479,17 @@ int magma_server_manage_readdir_extended(GSocket *socket, GSocketAddress *peer, 
 
 	magma_pktqr_readdir_extended(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.readdir_extended.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	/*
 	 * ACL
 	 */
-	if (!magma_validate_connection(socket, peer, request->body.readdir.path, 'r')) {
+	if (!magma_validate_connection(socket, peer, request->body.readdir_extended.path, 'r')) {
 		response.header.res = MAGMA_DIR_IS_CLOSE;
-		magma_pktas_readdir_extended(socket, peer, &response, request->header.transaction_id);
+		magma_pktas_readdir_extended(socket, peer, &response, request->header.transaction_id, flags);
 		dbg(LOG_INFO, DEBUG_PFUSE, "READDIR denied");
 		return (-1);
 	}
@@ -480,7 +513,7 @@ int magma_server_manage_readdir_extended(GSocket *socket, GSocketAddress *peer, 
 	 */
 	if (!dirp) {
 		response.header.res = MAGMA_DIR_IS_CLOSE;
-		magma_pktas_readdir_extended(socket, peer, &response, request->header.transaction_id);
+		magma_pktas_readdir_extended(socket, peer, &response, request->header.transaction_id, flags);
 		dbg(LOG_ERR, DEBUG_ERR, "READDIR#%d: %s", request->header.transaction_id, strerror(errno));
 		return (-1);
 	}
@@ -550,7 +583,7 @@ int magma_server_manage_readdir_extended(GSocket *socket, GSocketAddress *peer, 
 	 * Send this chunk of entries
 	 */
 	response.body.readdir_extended.offset = magma_telldir(dirp);
-	magma_pktas_readdir_extended(socket, peer, &response, request->header.transaction_id);
+	magma_pktas_readdir_extended(socket, peer, &response, request->header.transaction_id, flags);
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "READDIR#%d: sending a chunk of entries @%u", request->header.transaction_id, (unsigned int) offset);
 
@@ -572,6 +605,11 @@ int magma_server_manage_open(GSocket *socket, GSocketAddress *peer, gchar *buffe
 	char op = (request->body.open.flags & (O_WRONLY|O_RDWR)) ? 'w' : 'r';
 
 	magma_pktqr_open(buffer, request);
+
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.open.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
 
 	if (!magma_validate_connection(socket, peer, request->body.open.path, op)) {
 		res = -1;
@@ -597,7 +635,7 @@ int magma_server_manage_open(GSocket *socket, GSocketAddress *peer, gchar *buffe
 		flare = magma_search_or_create(request->body.open.path);
 	}
 
-	magma_pktas_open(socket, peer, res, server_errno, flare, request->header.transaction_id);
+	magma_pktas_open(socket, peer, res, server_errno, flare, request->header.transaction_id, flags);
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "open #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
@@ -617,6 +655,11 @@ int magma_server_manage_read(GSocket *socket, GSocketAddress *peer, gchar *buffe
 	gchar read_buffer[MAGMA_READ_WRITE_BUFFER_SIZE];
 
 	magma_pktqr_read(buffer, request);
+
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.read.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
 
 	if (!magma_validate_connection(socket, peer, request->body.read.path, 'r')) {
 		res = -1;
@@ -639,7 +682,7 @@ int magma_server_manage_read(GSocket *socket, GSocketAddress *peer, gchar *buffe
 		server_errno = errno;
 	}
 
-	magma_pktas_read(socket, peer, res, server_errno, read_buffer, request->header.transaction_id);
+	magma_pktas_read(socket, peer, res, server_errno, read_buffer, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "read #%05d (%s) answered res: %d, errno: %d",
 			request->header.transaction_id,
 			request->body.read.path,
@@ -657,6 +700,11 @@ int magma_server_manage_statfs(GSocket *socket, GSocketAddress *peer, gchar *buf
 	struct statfs statbuf;
 
 	magma_pktqr_statfs(buffer, request);
+
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.statfs.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
 
 	if (!magma_validate_connection(socket, peer, request->body.statfs.path, 'r')) {
 		res = -1;
@@ -677,7 +725,7 @@ int magma_server_manage_statfs(GSocket *socket, GSocketAddress *peer, gchar *buf
 		server_errno = errno;
 	}
 
-	magma_pktas_statfs(socket, peer, res, &statbuf, server_errno, request->header.transaction_id);
+	magma_pktas_statfs(socket, peer, res, &statbuf, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "statfs #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.statfs.path,
@@ -722,6 +770,11 @@ int magma_server_manage_mknod(GSocket *socket, GSocketAddress *peer, gchar *buff
 
 	magma_pktqr_mknod(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.mknod.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.mknod.path, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -757,7 +810,7 @@ int magma_server_manage_mknod(GSocket *socket, GSocketAddress *peer, gchar *buff
 		}
 	}
 
-	magma_pktas_mknod(socket, peer, res, server_errno, request->header.transaction_id);
+	magma_pktas_mknod(socket, peer, res, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "mknod #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.mknod.path,
@@ -766,7 +819,7 @@ int magma_server_manage_mknod(GSocket *socket, GSocketAddress *peer, gchar *buff
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.mknod.path);
@@ -819,6 +872,11 @@ int magma_server_manage_mkdir(GSocket *socket, GSocketAddress *peer, gchar *buff
 
 	magma_pktqr_mkdir(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.mkdir.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.mkdir.path, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -853,7 +911,7 @@ int magma_server_manage_mkdir(GSocket *socket, GSocketAddress *peer, gchar *buff
 		}
 	}
 
-	magma_pktas_mkdir(socket, peer, res, server_errno, request->header.transaction_id);
+	magma_pktas_mkdir(socket, peer, res, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "mkdir #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.mkdir.path,
@@ -862,7 +920,7 @@ int magma_server_manage_mkdir(GSocket *socket, GSocketAddress *peer, gchar *buff
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.mkdir.path);
@@ -911,6 +969,11 @@ int magma_server_manage_unlink(GSocket *socket, GSocketAddress *peer, gchar *buf
 
 	magma_pktqr_unlink(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.unlink.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.unlink.path, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -945,7 +1008,7 @@ int magma_server_manage_unlink(GSocket *socket, GSocketAddress *peer, gchar *buf
 		}
 	}
 
-	magma_pktas_unlink(socket, peer,res,server_errno, request->header.transaction_id);
+	magma_pktas_unlink(socket, peer,res,server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "unlink #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.unlink.path,
@@ -954,7 +1017,7 @@ int magma_server_manage_unlink(GSocket *socket, GSocketAddress *peer, gchar *buf
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
@@ -1004,6 +1067,11 @@ int magma_server_manage_rmdir(GSocket *socket, GSocketAddress *peer, gchar *buff
 
 	magma_pktqr_rmdir(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.rmdir.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.rmdir.path, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -1037,7 +1105,7 @@ int magma_server_manage_rmdir(GSocket *socket, GSocketAddress *peer, gchar *buff
 		}
 	}
 
-	magma_pktas_rmdir(socket, peer, res, server_errno, request->header.transaction_id);
+	magma_pktas_rmdir(socket, peer, res, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "rmdir #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.rmdir.path,
@@ -1046,7 +1114,7 @@ int magma_server_manage_rmdir(GSocket *socket, GSocketAddress *peer, gchar *buff
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
@@ -1097,6 +1165,11 @@ int magma_server_manage_symlink(GSocket *socket, GSocketAddress *peer, gchar *bu
 
 	magma_pktqr_symlink(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.symlink.from)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.symlink.from, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -1131,7 +1204,7 @@ int magma_server_manage_symlink(GSocket *socket, GSocketAddress *peer, gchar *bu
 		}
 	}
 
-	magma_pktas_symlink(socket, peer,res,server_errno, request->header.transaction_id);
+	magma_pktas_symlink(socket, peer,res,server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "symlink #%05d (%s, %s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.symlink.from,
@@ -1141,7 +1214,7 @@ int magma_server_manage_symlink(GSocket *socket, GSocketAddress *peer, gchar *bu
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
@@ -1223,9 +1296,14 @@ int magma_server_manage_link(GSocket *socket, GSocketAddress *peer, gchar *buffe
  */
 int magma_server_manage_rename(GSocket *socket, GSocketAddress *peer, gchar *buffer, magma_flare_request *request)
 {
+	int server_errno = 0, res = 0;
+
 	magma_pktqr_rmdir(buffer, request);
 
-	int server_errno = 0, res = 0;
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.rename.from)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
 
 	if (!magma_validate_connection(socket, peer, request->body.rename.from, 'w')) {
 		res = -1;
@@ -1236,7 +1314,7 @@ int magma_server_manage_rename(GSocket *socket, GSocketAddress *peer, gchar *buf
 		server_errno = EXDEV;
 	}
 
-	magma_pktas_rename(socket, peer, res, server_errno, request->header.transaction_id);
+	magma_pktas_rename(socket, peer, res, server_errno, request->header.transaction_id, flags);
 	return (res);
 }
 
@@ -1263,12 +1341,21 @@ void magma_redundant_chmod(magma_flare_request *request, magma_volcano *node)
 	magma_dispose_flare(flare);
 }
 
-int magma_server_manage_chmod(GSocket *socket, GSocketAddress *peer, gchar *buffer, magma_flare_request *request)
+int magma_server_manage_chmod(
+	GSocket *socket,
+	GSocketAddress *peer,
+	gchar *buffer,
+	magma_flare_request *request)
 {
 	int server_errno = 0, res = 0;
 	magma_operation_result *result = NULL;
 
 	magma_pktqr_chmod(buffer, request);
+
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.chmod.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
 
 	if (!magma_validate_connection(socket, peer, request->body.chmod.path, 'w')) {
 		res = -1;
@@ -1304,7 +1391,7 @@ int magma_server_manage_chmod(GSocket *socket, GSocketAddress *peer, gchar *buff
 		}
 	}
 
-	magma_pktas_chmod(socket, peer,res,server_errno, request->header.transaction_id);
+	magma_pktas_chmod(socket, peer,res,server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "chmod #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.chmod.path,
@@ -1313,7 +1400,7 @@ int magma_server_manage_chmod(GSocket *socket, GSocketAddress *peer, gchar *buff
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
@@ -1365,6 +1452,11 @@ int magma_server_manage_chown(GSocket *socket, GSocketAddress *peer, gchar *buff
 
 	magma_pktqr_chown(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.chown.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.chown.path, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -1400,7 +1492,7 @@ int magma_server_manage_chown(GSocket *socket, GSocketAddress *peer, gchar *buff
 		}
 	}
 
-	magma_pktas_chown(socket, peer,res,server_errno, request->header.transaction_id);
+	magma_pktas_chown(socket, peer,res,server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "chown #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.chown.path,
@@ -1409,7 +1501,7 @@ int magma_server_manage_chown(GSocket *socket, GSocketAddress *peer, gchar *buff
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.unlink.path);
@@ -1459,6 +1551,11 @@ int magma_server_manage_truncate(GSocket *socket, GSocketAddress *peer, gchar *b
 
 	magma_pktqr_truncate(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.truncate.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.truncate.path, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -1494,7 +1591,7 @@ int magma_server_manage_truncate(GSocket *socket, GSocketAddress *peer, gchar *b
 		}
 	}
 
-	magma_pktas_truncate(socket, peer, res, server_errno, request->header.transaction_id);
+	magma_pktas_truncate(socket, peer, res, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "truncate #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.truncate.path,
@@ -1503,7 +1600,7 @@ int magma_server_manage_truncate(GSocket *socket, GSocketAddress *peer, gchar *b
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.truncate.path);
@@ -1554,6 +1651,11 @@ int magma_server_manage_utime(GSocket *socket, GSocketAddress *peer, gchar *buff
 
 	magma_pktqr_utime(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.utime.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.utime.path, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -1589,7 +1691,7 @@ int magma_server_manage_utime(GSocket *socket, GSocketAddress *peer, gchar *buff
 		}
 	}
 
-	magma_pktas_utime(socket, peer, res, server_errno, request->header.transaction_id);
+	magma_pktas_utime(socket, peer, res, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "utime #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.utime.path,
@@ -1598,7 +1700,7 @@ int magma_server_manage_utime(GSocket *socket, GSocketAddress *peer, gchar *buff
 	if (result) return (res);
 
 	/* Redundancy ops */
-	if (-1 != res) {
+	if (res isNot -1) {
 		/* mirror on redundant node */
 		if (request->header.ttl > MAGMA_TERMINAL_TTL) {
 			magma_volcano *owner = magma_route_path(request->body.utime.path);
@@ -1654,6 +1756,11 @@ int magma_server_manage_write(GSocket *socket, GSocketAddress *peer, gchar *buff
 
 	magma_pktqr_write(buffer, request);
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.write.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	if (!magma_validate_connection(socket, peer, request->body.write.path, 'w')) {
 		res = -1;
 		errno = server_errno = ECONNREFUSED;
@@ -1692,7 +1799,7 @@ int magma_server_manage_write(GSocket *socket, GSocketAddress *peer, gchar *buff
 		}
 	}
 	
-	magma_pktas_write(socket, peer, res, server_errno, request->header.transaction_id);
+	magma_pktas_write(socket, peer, res, server_errno, request->header.transaction_id, flags);
 	dbg(LOG_INFO, DEBUG_PFUSE, "write #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
 		request->body.write.path,
@@ -1733,6 +1840,11 @@ int magma_server_manage_f_opendir(GSocket *socket, GSocketAddress *peer, magma_f
 {
 	int res = 0, server_errno = 0;
 
+	magma_flags flags = 0;
+	if (magma_misplaced_query(request->body.f_opendir.path)) {
+		magma_raise_flag(flags, MAGMA_FLAG_REFRESH_TOPOLOGY);
+	}
+
 	dbg(LOG_INFO, DEBUG_PFUSE, "F_OPENDIR #%05d on %s@%lu by %d.%d",
 		request->header.transaction_id,
 		request->body.f_opendir.path,
@@ -1742,7 +1854,8 @@ int magma_server_manage_f_opendir(GSocket *socket, GSocketAddress *peer, magma_f
 
 	magma_flare_t *flare = magma_search_or_create(request->body.f_opendir.path);
 	if (!flare) {
-		magma_pktas_f_opendir(socket, peer, -1, ENOENT, NULL, 0, 0, 0, request->header.transaction_id);
+		magma_pktas_f_opendir(socket, peer, -1, ENOENT, NULL, 0, 0, 0,
+			request->header.transaction_id, flags);
 		dbg(LOG_ERR, DEBUG_DIR, "f_opendir(%s): no such flare", request->body.f_opendir.path);
 		return (-1);
 	}
@@ -1753,7 +1866,7 @@ int magma_server_manage_f_opendir(GSocket *socket, GSocketAddress *peer, magma_f
 	int fd = magma_open_flare_contents(flare);
 	if (fd is -1) {
 		int server_error = errno;
-		magma_pktas_f_opendir(socket, peer, -1, ENOENT, NULL, 0, 0, 0, request->header.transaction_id);
+		magma_pktas_f_opendir(socket, peer, -1, ENOENT, NULL, 0, 0, 0, request->header.transaction_id, 0);
 		dbg(LOG_ERR, DEBUG_DIR, "f_opendir(%s): error opening contents, %s", request->body.f_opendir.path, strerror(server_error));
 		magma_dispose_flare(flare);
 		return (-1);
@@ -1772,7 +1885,7 @@ int magma_server_manage_f_opendir(GSocket *socket, GSocketAddress *peer, magma_f
 
 	magma_pktas_f_opendir(socket, peer, res, server_errno, buffer,
 		request->body.f_opendir.offset + read, read,
-		flare->st.st_size, request->header.transaction_id);
+		flare->st.st_size, request->header.transaction_id, flags);
 
 	dbg(LOG_INFO, DEBUG_PFUSE, "f_opendir #%05d (%s) answered res: %d, errno: %d",
 		request->header.transaction_id,
@@ -1872,7 +1985,7 @@ void magma_manage_udp_flare_protocol(
 	gchar *ptr = magma_parse_request_header(buffer, (magma_request *) &request);
 	if (!ptr) {
 		dbg(LOG_WARNING, DEBUG_ERR, "error deserializing request headers");
-		magma_send_udp_failure(socket, peer, 0, request.header.transaction_id);
+		magma_send_udp_failure(socket, peer, 0, request.header.transaction_id, 0);
 		return;
 	}
 
@@ -1896,7 +2009,7 @@ void magma_manage_udp_flare_protocol(
 	 */
 	if (!magma_optype_callbacks[request.header.type]) {
 		dbg(LOG_WARNING, DEBUG_ERR, "operation type unknown: %d", request.header.type);
-		magma_send_udp_failure(socket, peer, 0, request.header.transaction_id);
+		magma_send_udp_failure(socket, peer, 0, request.header.transaction_id, 0);
 		return;
 	}
 

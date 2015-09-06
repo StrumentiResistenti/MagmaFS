@@ -59,13 +59,13 @@ void magma_init_net_layer()
 /**
  * Open a connection to a magma server
  *
- * @param host_and_port remote host and port as a string; if no port is present, default port is used; host can be an address or a host name
+ * @param host remote host as a string
+ * @param port remote port as an integer
+ * ; if no port is present, default port is used; host can be an address or a host name
  * @return a magma_connection structure
  */
 GSocket *magma_open_client_connection(const gchar *host, const uint16_t port, GSocketAddress **peer)
 {
-	GError *error = NULL;
-
 #if MAGMA_CACHE_SOCKETS
 	/*
 	 * lookup the socket in the cache
@@ -82,7 +82,13 @@ GSocket *magma_open_client_connection(const gchar *host, const uint16_t port, GS
 	/*
 	 * Create the socket
 	 */
-	GSocket *socket = g_socket_new(G_SOCKET_FAMILY_IPV4, G_SOCKET_TYPE_DATAGRAM, G_SOCKET_PROTOCOL_UDP, &error);
+	GError *error = NULL;
+	GSocket *socket = g_socket_new(
+		G_SOCKET_FAMILY_IPV4,
+		G_SOCKET_TYPE_DATAGRAM,
+		G_SOCKET_PROTOCOL_UDP,
+		&error);
+
 	if (error) {
 		fprintf(stderr, "Error on socket creation: %s\n", error->message);
 		g_error_free(error);
